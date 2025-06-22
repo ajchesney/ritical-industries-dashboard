@@ -1,1 +1,1 @@
-# ritical-industries-dashboard
+# critical-industries-dashboard
