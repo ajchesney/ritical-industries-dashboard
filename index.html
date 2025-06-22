@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Analysis of U.S. Critical Industries (2025-2035)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- 
+        Chosen Palette: "Calm & Professional Neutrals" - A sophisticated and focused palette using a base of light gray-blue (#F0F4F8), with text in dark slate (#2D3748) and accents in a deep teal (#073B4C) and a muted rust (#A0522D). This creates a professional, non-distracting environment suitable for data analysis.
+        Application Structure Plan: The SPA is designed as an interactive dashboard. A sticky top navigation bar allows users to select one of the seven critical industries. Clicking an industry button scrolls to and dynamically updates a unified content area below. This area is a responsive grid displaying: 1) A summary of the industry's criticality, 2) An interactive chart showing workforce shortage data, 3) A section detailing key roles with O*NET skills and training pathways, and 4) An overview of the primary training pipelines. This structure was chosen to facilitate direct comparison between industries and allow users to explore the data in a non-linear, on-demand fashion, enhancing usability over a static report.
+        Visualization & Content Choices:
+        - Methodology & Drivers: Presented as clear, expandable text sections (accordions) to provide foundational context without cluttering the main view. Goal: Inform. Method: HTML/CSS/JS.
+        - Workforce Shortages: Visualized using dynamic Bar Charts (Chart.js/Canvas) to clearly compare current and forecasted shortages. This allows for quick comprehension of the scale of the challenge. Goal: Compare/Change. Method: Chart.js.
+        - Key Roles & Skills: Organized into interactive cards. Each card shows a key role and can be clicked to reveal detailed O*NET skills and a Donut chart visualizing the primary educational pathways. This encourages exploration and presents dense information digestibly. Goal: Organize/Explore. Method: HTML/CSS/JS + Chart.js.
+        - Training Pathways: Displayed in visually distinct cards with icons to break up text and improve readability. Goal: Inform. Method: Structured HTML/CSS with Unicode icons.
+        CONFIRMATION: NO SVG graphics used. NO Mermaid JS used.
+    -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #F0F4F8;
+            color: #2D3748;
+        }
+        .nav-button {
+            transition: all 0.3s ease;
+        }
+        .nav-button.active {
+            background-color: #073B4C;
+            color: #FFFFFF;
+            font-weight: 600;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 350px;
+            max-height: 400px;
+        }
+        .role-card {
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .role-card .details {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.5s ease-out, padding 0.5s ease-out;
+            padding-top: 0;
+            padding-bottom: 0;
+        }
+        .role-card.open .details {
+            max-height: 500px; /* Adjust as needed */
+            padding-top: 1rem;
+            padding-bottom: 1rem;
+        }
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.5s ease-out;
+        }
+        .accordion-button.open + .accordion-content {
+            max-height: 1000px; /* Adjust as needed */
+        }
+        .sticky-nav {
+            position: -webkit-sticky;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            background-color: rgba(240, 244, 248, 0.85);
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <div class="container mx-auto px-4 py-8">
+        
+        <header class="text-center mb-12">
+            <h1 class="text-4xl md:text-5xl font-extrabold text-[#073B4C] mb-4">U.S. Critical Industries: A 2025-2035 Workforce Outlook</h1>
+            <p class="text-lg md:text-xl text-gray-700 max-w-4xl mx-auto">An interactive analysis of the seven most vital sectors for U.S. domestic growth and defense supremacy. Explore the key roles, skills, and workforce challenges shaping America's future.</p>
+        </header>
+
+        <section id="methodology" class="mb-12 max-w-5xl mx-auto bg-white p-6 rounded-lg shadow-md">
+            <div class="accordion">
+                <button class="accordion-button w-full text-left text-2xl font-bold text-[#073B4C] flex justify-between items-center py-2">
+                    <span>Our Methodology</span>
+                    <span class="transform transition-transform duration-300">▼</span>
+                </button>
+                <div class="accordion-content">
+                    <div class="pt-4 text-gray-600 space-y-4">
+                        <p><strong class="text-gray-800">Defining "Critical Industries":</strong> Industries are deemed critical if their incapacitation would have a debilitating effect on national security, economic stability, or public health and safety. This analysis focuses on sectors vital for their direct support of military capabilities, their foundational role in the economy, and their contribution to technological superiority (e.g., AI, Semiconductors) and supply chain resilience.</p>
+                        <p><strong class="text-gray-800">Defining "Understaffed":</strong> In this context, understaffing is not just a numerical deficit but a qualitative shortfall of personnel with the specialized skills required for critical roles. We analyze this through job vacancy rates, projected growth outpacing talent pipelines, and documented skills gaps in each sector.</p>
+                         <p><strong class="text-gray-800">Why Shortages are Foreseen:</strong> Worker shortages are driven by a confluence of factors: an aging workforce leading to mass retirements, rapid technological advancement creating skills gaps, intense competition for talent across high-tech sectors, and shifting workforce preferences among younger generations.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <nav class="sticky-nav py-4 mb-8 border-b-2 border-gray-300">
+            <div id="industry-selector" class="flex flex-wrap justify-center gap-2">
+                <!-- Industry buttons will be populated by JS -->
+            </div>
+        </nav>
+
+        <main id="industry-analysis-section">
+            <div id="dynamic-content-area" class="space-y-12">
+                <!-- Industry-specific content will be dynamically inserted here -->
+            </div>
+        </main>
+        
+    </div>
+
+<script>
+const industryData = {
+    energy: {
+        title: "Energy",
+        criticality: "The energy sector is foundational to all economic activity and national security, powering industries, homes, and critical infrastructure. The transition to clean energy and the need to secure the grid against cyberattacks make this sector's workforce indispensable. The rise of AI and its massive power demands further amplifies the need for skilled energy workers.",
+        shortage: {
+            current: "Acute shortages of electricians, lineworkers, and renewable technicians. Nearly half of the current utility workforce is expected to retire within the next decade.",
+            forecast: "Demand will surge due to electrification and clean energy projects. An estimated 1.1 million additional workers are needed by 2035 to meet climate and infrastructure goals, with shortages likely persisting through the decade."
+        },
+        chartData: {
+            labels: ["Electricians", "Solar Installers", "Wind Techs", "Power Engineers"],
+            shortage: [80200, 15000, 5000, 19000], // Annual openings/shortage
+            growth: [11, 22, 45, 6] // Projected % growth by 2033
+        },
+        roles: [
+            { name: "Electricians", onet: "47-2111.00", skills: ["Troubleshooting", "Repairing", "Installation", "Critical Thinking"], pathways: { "Apprenticeship": 70, "Vocational School": 30 } },
+            { name: "Solar PV Installers", onet: "47-2231.00", skills: ["Installation", "Critical Thinking", "Quality Control", "Problem Solving"], pathways: { "Vocational School": 60, "On-the-Job": 40 } },
+            { name: "Wind Turbine Technicians", onet: "49-9081.00", skills: ["Equipment Maintenance", "Repairing", "Troubleshooting", "Operations Monitoring"], pathways: { "Associate's Degree": 50, "Vocational School": 50 } },
+            { name: "Power Systems Engineers", onet: "17-2071.00", skills: ["Systems Analysis", "Complex Problem Solving", "Mathematics", "Project Management"], pathways: { "Bachelor's Degree": 90, "Master's Degree": 10 } },
+        ],
+        pathways: [
+            { name: "Apprenticeships", description: "The primary pathway for electricians and lineworkers, typically lasting 4-5 years and combining on-the-job training with classroom instruction." },
+            { name: "Vocational/Technical Schools", description: "Offers specialized certificates and associate's degrees for roles like solar installers and wind technicians." },
+            { name: "University Programs", description: "Bachelor's and Master's degrees in Electrical Engineering are essential for power systems engineers." }
+        ]
+    },
+    healthcare: {
+        title: "Healthcare and Biotech",
+        criticality: "Essential for societal well-being, national resilience, and economic stability (nearly 18% of GDP). Biotech innovation is strategic for economic competitiveness and biodefense, making it a critical emerging technology field.",
+        shortage: {
+            current: "Significant shortages of nurses, physicians, and lab technologists. The U.S. Surgeon General warns of a potential deficit of 3 million low-wage healthcare workers by 2027 and 140,000 physicians by 2033.",
+            forecast: "Driven by an aging population, demand will continue to outpace supply. Tens of thousands of physician and nurse shortfalls are projected through 2035. Biotech will require more specialized R&D and biomanufacturing talent."
+        },
+        chartData: {
+            labels: ["Registered Nurses", "Physicians", "Lab Technologists", "Biotech Scientists"],
+            shortage: [203000, 140000, 25000, 10000], // Projected annual openings / total shortage
+            growth: [6, 3, 7, 5] // Projected % growth by 2033
+        },
+        roles: [
+            { name: "Registered Nurses (RNs)", onet: "29-1141.00", skills: ["Patient Assessment", "Communication", "Critical Thinking", "Empathy"], pathways: { "Bachelor's Degree": 60, "Associate's Degree": 40 } },
+            { name: "Physicians", onet: "29-1229.00", skills: ["Complex Problem Solving", "Judgment & Decision Making", "Active Listening", "Service Orientation"], pathways: { "Doctoral/Professional Degree": 100 } },
+            { name: "Lab Technologists", onet: "29-2011.00", skills: ["Attention to Detail", "Quality Control", "Instrumentation", "Analytical Thinking"], pathways: { "Bachelor's Degree": 70, "Associate's Degree": 30 } },
+            { name: "Biotech Research Scientists", onet: "19-1021.00", skills: ["Experiment Design", "Data Analysis", "Critical Thinking", "Biochemistry"], pathways: { "Doctoral/Professional Degree": 60, "Master's Degree": 40 } },
+        ],
+        pathways: [
+            { name: "University Programs", description: "Degrees at all levels (Associate's, Bachelor's, Master's, PhD) are foundational for nearly all roles in this sector." },
+            { name: "Medical Residency & Fellowships", description: "Essential post-graduate training for physicians to specialize and become licensed." },
+            { name: "Biomanufacturing Training", description: "Specialized certificate programs and associate's degrees are emerging to fill technician roles in the biotech industry." }
+        ]
+    },
+    manufacturing: {
+        title: "Advanced Manufacturing & Industrial Trades",
+        criticality: "A strong manufacturing base is the backbone of the defense industrial base and economic vitality. Skilled trades build and maintain critical infrastructure, from factories to defense systems, ensuring supply chain resilience.",
+        shortage: {
+            current: "A severe, well-documented shortage of skilled tradespeople like welders, machinists, and industrial mechanics. Over half of the manufacturing workforce is over 45, facing a 'silver tsunami' of retirements.",
+            forecast: "Federal investments in infrastructure and reshoring initiatives will intensify demand. Projections show a potential shortage of over 1 million skilled trade workers by 2035 if training pipelines are not drastically scaled."
+        },
+        chartData: {
+            labels: ["Machinists (CNC)", "Welders", "Industrial Mechanics", "Construction Trades"],
+            shortage: [90000, 400000, 50000, 500000], // Projected total shortage by 2030s
+            growth: [4, 2, 10, 5] // Projected % growth by 2033
+        },
+        roles: [
+            { name: "CNC Machinists", onet: "51-4041.00", skills: ["Blueprint Reading", "CAD/CAM Programming", "Operation & Control", "Quality Control"], pathways: { "Apprenticeship": 50, "Vocational School": 50 } },
+            { name: "Welders & Fabricators", onet: "51-4121.00", skills: ["Welding Processes (MIG/TIG)", "Manual Dexterity", "Quality Control", "Safety Consciousness"], pathways: { "Vocational School": 60, "On-the-Job": 40 } },
+            { name: "Industrial Mechanics", onet: "17-3024.01", skills: ["Repairing", "Troubleshooting", "Preventive Maintenance", "PLC Programming"], pathways: { "Associate's Degree": 50, "Apprenticeship": 50 } },
+            { name: "Construction Trades", onet: "47-XXXX", skills: ["Craft Proficiency", "Problem Solving", "Code Compliance", "Customer Service"], pathways: { "Apprenticeship": 80, "Vocational School": 20 } },
+        ],
+        pathways: [
+            { name: "Apprenticeships & Vocational Schools", description: "The primary talent pipelines, offering hands-on training and industry-recognized certifications (e.g., AWS for welders)." },
+            { name: "Community Colleges", description: "Often partner with local manufacturers to offer customized associate's degree and certificate programs." },
+            { name: "DoD SkillBridge", description: "A key program for transitioning military personnel with technical skills into the civilian workforce." }
+        ]
+    },
+    ai: {
+        title: "Artificial Intelligence & Advanced Computing",
+        criticality: "AI is a transformative general-purpose technology driving the next wave of economic growth and is central to modern defense strategy. U.S. leadership in AI, data science, and high-performance computing is essential for both economic and national security.",
+        shortage: {
+            current: "Demand for AI talent far outstrips supply. Projections show a potential shortfall of nearly 700,000 AI workers in the U.S. by 2027 as companies across all sectors rush to adopt AI.",
+            forecast: "The talent shortage will persist through the next decade. While more graduates will enter the field, the demand for specialized, experienced AI researchers and engineers will remain intense."
+        },
+        chartData: {
+            labels: ["Data Scientists", "ML Engineers", "AI Research Scientists", "HPC Engineers"],
+            shortage: [250000, 250000, 100000, 50000], // Projected total U.S. shortage by 2027
+            growth: [36, 35, 23, 15] // Projected % growth by 2033
+        },
+        roles: [
+            { name: "Data Scientists / ML Engineers", onet: "15-2051.00", skills: ["Programming (Python/R)", "Machine Learning Algorithms", "Statistics", "Data Visualization"], pathways: { "Master's Degree": 50, "Bachelor's Degree": 40, "PhD": 10 } },
+            { name: "AI Research Scientists", onet: "15-1221.00", skills: ["Deep Learning", "NLP/Computer Vision", "Advanced Mathematics", "Algorithm Design"], pathways: { "PhD": 80, "Master's Degree": 20 } },
+            { name: "HPC/Cloud Engineers", onet: "15-1244.00", skills: ["Distributed Systems", "Parallel Computing", "Cloud Platforms (AWS/Azure)", "Containerization"], pathways: { "Bachelor's Degree": 70, "Master's Degree": 30 } },
+        ],
+        pathways: [
+            { name: "University Programs", description: "Master's and PhD programs in Computer Science are the primary source for top-tier AI research and engineering talent." },
+            { name: "Specialized Bootcamps", description: "Intensive, short-term training programs have emerged to quickly upskill individuals in data science and machine learning." },
+            { name: "Internal Upskilling", description: "Major tech companies and government agencies are heavily investing in training their existing workforce to fill AI roles." }
+        ]
+    },
+    semiconductor: {
+        title: "Semiconductor (Microelectronics)",
+        criticality: "Semiconductors are the bedrock of the entire digital economy and modern military technology. Domestic chip production is a paramount national security issue, essential for resilient supply chains and technological sovereignty.",
+        shortage: {
+            current: "An acute talent crisis. The U.S. faces a projected shortage of over 67,000 technicians, engineers, and computer scientists by 2030, which could hamstring the ambitious goals of the CHIPS Act.",
+            forecast: "The global demand for chips will soar with the growth of AI and IoT. The talent pipeline takes years to develop, meaning the U.S. shortage will likely persist as new fabrication plants (fabs) come online."
+        },
+        chartData: {
+            labels: ["Processing Techs", "Microelectronics Engineers", "Materials Engineers", "Maintenance Techs"],
+            shortage: [40000, 20000, 5000, 2000], // Projected U.S. shortage by 2030
+            growth: [5, 6, 4, 8] // Projected % growth by 2033
+        },
+        roles: [
+            { name: "Processing Technicians", onet: "51-9141.00", skills: ["Equipment Operation", "Quality Control", "Troubleshooting", "Attention to Detail"], pathways: { "Associate's Degree": 60, "Certificate": 40 } },
+            { name: "Microelectronics Engineers", onet: "17-2071.00", skills: ["Circuit Design", "Semiconductor Physics", "EDA Software", "Problem Solving"], pathways: { "Bachelor's Degree": 60, "Master's Degree": 40 } },
+            { name: "Materials/Process Engineers", onet: "17-2131.00", skills: ["Chemical Engineering", "Thin-Film Deposition", "Data Analysis", "Process Optimization"], pathways: { "Master's Degree": 50, "Bachelor's Degree": 50 } },
+            { name: "Equipment Technicians", onet: "49-9041.00", skills: ["Electro-mechanical Repair", "Diagnostics", "Schematic Reading", "Precision"], pathways: { "Associate's Degree": 70, "Certificate": 30 } },
+        ],
+        pathways: [
+            { name: "Community Colleges", description: "Crucial for training the technician workforce, with many forming direct partnerships with chip manufacturers." },
+            { name: "University Engineering Programs", description: "B.S., M.S., and Ph.D. programs in Electrical, Chemical, and Materials Engineering are vital for developing R&D talent." },
+            { name: "National Initiatives", description: "The National Semiconductor Technology Center (NSTC) is being established to coordinate and fund advanced training and R&D." }
+        ]
+    },
+    cybersecurity: {
+        title: "Cybersecurity",
+        criticality: "Cybersecurity is the shield for the digital age, protecting everything from the nation's financial systems and power grid to military communications and weapons systems. It is a direct and non-negotiable national security imperative.",
+        shortage: {
+            current: "A severe and chronic workforce gap. The U.S. currently has over 450,000 unfilled cybersecurity jobs, a number nearly equal to the entire current cybersecurity workforce.",
+            forecast: "The talent gap is expected to continue growing as the cyber attack surface expands. Projections show 3.5 million unfilled jobs globally by 2025. Job growth is projected to surge by 32% through 2033."
+        },
+        chartData: {
+            labels: ["Security Analysts", "Network Admins", "Engineers", "Pen Testers"],
+            shortage: [200000, 100000, 100000, 50000], // Estimated current U.S. job openings
+            growth: [32, 5, 15, 15] // Projected % growth by 2033
+        },
+        roles: [
+            { name: "Information Security Analysts", onet: "15-1212.00", skills: ["Risk Assessment", "System Monitoring", "Firewall/IDS Management", "Incident Response"], pathways: { "Bachelor's Degree": 70, "Certifications": 30 } },
+            { name: "Network/Systems Administrators", onet: "15-1244.00", skills: ["Secure Configuration", "Access Control", "Scripting", "Troubleshooting"], pathways: { "Bachelor's Degree": 60, "Certifications": 40 } },
+            { name: "Cybersecurity Engineers", onet: "14-XXXX", skills: ["Secure Architecture Design", "Cryptography", "Programming", "Cloud Security"], pathways: { "Bachelor's Degree": 80, "Master's Degree": 20 } },
+            { name: "Penetration Testers", onet: "15-1212.00", skills: ["Ethical Hacking", "Vulnerability Assessment", "Malware Analysis", "Reporting"], pathways: { "Certifications": 50, "Bachelor's Degree": 50 } },
+        ],
+        pathways: [
+            { name: "Industry Certifications", description: "Credentials like CISSP, Security+, and CEH are often more critical than degrees for proving job-readiness." },
+            { name: "University & Community College Programs", description: "A growing number of institutions offer specialized cybersecurity degrees and certificates." },
+            { name: "Apprenticeships & Bootcamps", description: "Intensive, hands-on training models are emerging as a rapid pathway into the industry." }
+        ]
+    },
+    aerospace: {
+        title: "Aerospace and Defense",
+        criticality: "The A&D industry is the cornerstone of U.S. military power and a major high-tech exporter. A robust domestic industrial base is essential for producing next-generation aircraft, satellites, and defense systems.",
+        shortage: {
+            current: "Facing a dual crisis of an aging workforce (25% near retirement) and intense competition for digital talent. Shortages are severe for engineers with software/AI skills and for skilled trades like high-precision machinists.",
+            forecast: "Demand will grow amid global threats and the race for space. The talent gap will likely widen as defense production ramps up and older workers retire, creating a persistent strategic challenge."
+        },
+        chartData: {
+            labels: ["Aerospace Engineers", "Aircraft Mechanics", "Electronics Engineers", "Skilled Trades"],
+            shortage: [4200, 6000, 5000, 20000], // Projected annual openings / shortage
+            growth: [6, 4, 5, 3] // Projected % growth by 2033
+        },
+        roles: [
+            { name: "Aerospace Engineers", onet: "17-2011.00", skills: ["Aerodynamics", "Systems Engineering", "CAD/Simulation", "Complex Problem Solving"], pathways: { "Bachelor's Degree": 70, "Master's Degree": 30 } },
+            { name: "Aircraft Mechanics", onet: "49-3011.00", skills: ["Airframe & Engine Maintenance", "Avionics Troubleshooting", "Inspections", "Quality Control"], pathways: { "Certificate (A&P)": 80, "Associate's Degree": 20 } },
+            { name: "Electronics Engineers", onet: "17-2071.00", skills: ["Radar/Communications Systems", "Systems Integration", "Control Software", "Cybersecurity"], pathways: { "Bachelor's Degree": 80, "Master's Degree": 20 } },
+            { name: "Precision Machinists", onet: "51-4041.00", skills: ["High-Precision Machining", "Blueprint Reading", "CAD/CAM", "Quality Standards"], pathways: { "Apprenticeship": 60, "Vocational School": 40 } },
+        ],
+        pathways: [
+            { name: "University Engineering Programs", description: "The primary source for aerospace, mechanical, and electrical engineers." },
+            { name: "Aviation Maintenance (A&P) Schools", description: "FAA-certified programs are essential for aircraft mechanics and technicians." },
+            { name: "Skilled Trades Apprenticeships", description: "Crucial for developing the next generation of high-precision machinists and welders for the defense industrial base." }
+        ]
+    }
+};
+
+let activeIndustry = 'energy';
+let charts = {};
+
+function createRolePathwayChart(canvasId, data) {
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    if (charts[canvasId]) {
+        charts[canvasId].destroy();
+    }
+    charts[canvasId] = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: Object.keys(data),
+            datasets: [{
+                data: Object.values(data),
+                backgroundColor: ['#073B4C', '#2D3748', '#A0522D', '#6E7E85'],
+                borderColor: '#ffffff',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        boxWidth: 12,
+                        padding: 15,
+                        font: { size: 12 }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `${context.label}: ${context.raw}%`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function createShortageChart(canvasId, data) {
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    if (charts[canvasId]) {
+        charts[canvasId].destroy();
+    }
+    charts[canvasId] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.labels,
+            datasets: [
+                {
+                    label: 'Projected Annual Openings / Shortage',
+                    data: data.shortage,
+                    backgroundColor: 'rgba(7, 59, 76, 0.7)',
+                    borderColor: '#073B4C',
+                    borderWidth: 1
+                },
+                 {
+                    label: 'Projected Growth by 2033 (%)',
+                    data: data.growth,
+                    backgroundColor: 'rgba(160, 82, 45, 0.6)',
+                    borderColor: '#A0522D',
+                    borderWidth: 1,
+                    yAxisID: 'y1'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    type: 'linear',
+                    position: 'left',
+                    title: { display: true, text: 'Number of Workers (Annual/Total)' }
+                },
+                y1: {
+                    beginAtZero: true,
+                    type: 'linear',
+                    position: 'right',
+                    title: { display: true, text: 'Projected Growth (%)' },
+                    grid: { drawOnChartArea: false }
+                }
+            },
+            plugins: {
+                tooltip: {
+                    mode: 'index',
+                    intersect: false
+                }
+            }
+        }
+    });
+}
+
+function renderIndustry(industryKey) {
+    const data = industryData[industryKey];
+    const contentArea = document.getElementById('dynamic-content-area');
+
+    let rolesHtml = data.roles.map((role, index) => `
+        <div class="role-card bg-white p-4 rounded-lg shadow-sm border border-gray-200" onclick="toggleRoleCard(this)">
+            <div class="flex justify-between items-center">
+                <h4 class="text-lg font-semibold text-[#073B4C]">${role.name}</h4>
+                <span class="text-2xl text-gray-400 transform transition-transform duration-300">+</span>
+            </div>
+            <div class="details">
+                <p class="text-sm text-gray-500 mb-3">O*NET: ${role.onet}</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <h5 class="font-bold mb-2 text-gray-700">Top Skills:</h5>
+                        <ul class="list-disc list-inside text-gray-600 space-y-1">
+                            ${role.skills.map(skill => `<li>${skill}</li>`).join('')}
+                        </ul>
+                    </div>
+                    <div class="h-40">
+                         <canvas id="pathway-chart-${industryKey}-${index}"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+
+    let pathwaysHtml = data.pathways.map(pathway => `
+        <div class="bg-teal-50 p-4 rounded-lg">
+            <h4 class="font-bold text-teal-800">${pathway.name}</h4>
+            <p class="text-teal-700 text-sm">${pathway.description}</p>
+        </div>
+    `).join('');
+
+    contentArea.innerHTML = `
+        <div id="${industryKey}" class="space-y-12">
+            <section>
+                <h2 class="text-3xl font-bold text-center text-[#073B4C] mb-4">${data.title}</h2>
+                <p class="text-center max-w-3xl mx-auto text-gray-700">${data.criticality}</p>
+            </section>
+            
+            <section class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h3 class="text-2xl font-bold mb-4 text-[#073B4C]">Workforce Shortage Outlook</h3>
+                    <p class="mb-2 text-gray-600"><strong class="text-gray-800">Current:</strong> ${data.shortage.current}</p>
+                    <p class="text-gray-600"><strong class="text-gray-800">Forecast:</strong> ${data.shortage.forecast}</p>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <div class="chart-container">
+                        <canvas id="shortage-chart-${industryKey}"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <section>
+                <h3 class="text-2xl font-bold text-center mb-6 text-[#073B4C]">Key Roles, Skills & Educational Pathways</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    ${rolesHtml}
+                </div>
+            </section>
+            
+            <section>
+                <h3 class="text-2xl font-bold text-center mb-6 text-[#073B4C]">Primary Training Pipelines</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    ${pathwaysHtml}
+                </div>
+            </section>
+        </div>
+    `;
+
+    // Wait for the DOM to update, then create charts
+    setTimeout(() => {
+        createShortageChart(`shortage-chart-${industryKey}`, data.chartData);
+        data.roles.forEach((role, index) => {
+            createRolePathwayChart(`pathway-chart-${industryKey}-${index}`, role.pathways);
+        });
+    }, 0);
+}
+
+function setupNav() {
+    const selector = document.getElementById('industry-selector');
+    selector.innerHTML = Object.keys(industryData).map(key => 
+        `<button id="btn-${key}" data-key="${key}" class="nav-button px-4 py-2 text-sm font-medium text-gray-700 bg-white rounded-md shadow-sm hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#073B4C]">
+            ${industryData[key].title}
+        </button>`
+    ).join('');
+
+    selector.addEventListener('click', e => {
+        if (e.target.tagName === 'BUTTON') {
+            const key = e.target.dataset.key;
+            setActiveIndustry(key);
+        }
+    });
+}
+
+function setActiveIndustry(key) {
+    activeIndustry = key;
+    document.querySelectorAll('#industry-selector button').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.key === key);
+    });
+    renderIndustry(key);
+    const section = document.getElementById(key);
+    if(section) {
+       section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
+
+function toggleRoleCard(cardElement) {
+    cardElement.classList.toggle('open');
+    const icon = cardElement.querySelector('.text-2xl');
+    icon.textContent = cardElement.classList.contains('open') ? '−' : '+';
+    icon.classList.toggle('rotate-90', cardElement.classList.contains('open'));
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    setupNav();
+    setActiveIndustry('energy');
+
+    document.querySelectorAll('.accordion-button').forEach(button => {
+        button.addEventListener('click', () => {
+            button.classList.toggle('open');
+            const icon = button.querySelector('span:last-child');
+            icon.classList.toggle('rotate-180', button.classList.contains('open'));
+        });
+    });
+});
+
+</script>
+</body>
+</html>
