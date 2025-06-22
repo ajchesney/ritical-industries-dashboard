@@ -11,12 +11,15 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- 
         Chosen Palette: "Calm & Professional Neutrals" - A sophisticated and focused palette using a base of light gray-blue (#F0F4F8), with text in dark slate (#2D3748) and accents in a deep teal (#073B4C) and a muted rust (#A0522D). This creates a professional, non-distracting environment suitable for data analysis.
-        Application Structure Plan: The SPA is designed as an interactive dashboard. A sticky top navigation bar allows users to select one of the seven critical industries. Clicking an industry button scrolls to and dynamically updates a unified content area below. This area is a responsive grid displaying: 1) A summary of the industry's criticality, 2) An interactive chart showing workforce shortage data, 3) A section detailing key roles with O*NET skills and training pathways, and 4) An overview of the primary training pipelines. This structure was chosen to facilitate direct comparison between industries and allow users to explore the data in a non-linear, on-demand fashion, enhancing usability over a static report.
+        Application Structure Plan: The SPA is designed as an interactive dashboard with four main views: Industry Analysis, Talent Flow Map, Full Report, and Additional Analysis. A sticky top navigation bar allows users to select between these views or specific industries within the analysis view. The Industry Analysis view displays criticality, shortage data (chart), roles/skills (expandable cards with donut charts), and training pathways. The Talent Flow Map presents a three-column visualization (Sources -> Skills -> Industries) with interactive lines. The Full Report view presents the comprehensive textual report content. The Additional Analysis view presents supplementary textual content. This structure facilitates detailed industry exploration, a holistic talent pipeline overview, and access to the full underlying reports.
         Visualization & Content Choices:
-        - Methodology & Drivers: Presented as clear, expandable text sections (accordions) to provide foundational context without cluttering the main view. Goal: Inform. Method: HTML/CSS/JS.
-        - Workforce Shortages: Visualized using dynamic Bar Charts (Chart.js/Canvas) to clearly compare current and forecasted shortages. This allows for quick comprehension of the scale of the challenge. Goal: Compare/Change. Method: Chart.js.
-        - Key Roles & Skills: Organized into interactive cards. Each card shows a key role and can be clicked to reveal detailed O*NET skills and a Donut chart visualizing the primary educational pathways. This encourages exploration and presents dense information digestibly. Goal: Organize/Explore. Method: HTML/CSS/JS + Chart.js.
-        - Training Pathways: Displayed in visually distinct cards with icons to break up text and improve readability. Goal: Inform. Method: Structured HTML/CSS with Unicode icons.
+        - Methodology & Drivers: Presented as clear, expandable text sections (accordions) to provide foundational context. Goal: Inform. Method: HTML/CSS/JS.
+        - Workforce Shortages: Visualized using dynamic Bar Charts (Chart.js/Canvas) to clearly compare current and forecasted shortages. Goal: Compare/Change. Method: Chart.js.
+        - Key Roles & Skills: Organized into interactive cards. Each card shows a key role and can be clicked to reveal detailed O*NET skills and a Donut chart visualizing the primary educational pathways. Goal: Organize/Explore. Method: HTML/CSS/JS + Chart.js.
+        - Training Pathways (Industry Analysis): Displayed in visually distinct cards. Goal: Inform. Method: Structured HTML/CSS with Unicode icons.
+        - Talent Flow Map (New View): Approximates a Sankey diagram using HTML/CSS divs and JavaScript for positioning and interactive lines. Shows Source -> Skill -> Industry flows. Goal: Relationships/Organize. Method: HTML/CSS/JS. Line thickness indicates importance. Hover effects provide clarity.
+        - Full Report (New View): Presents static, pre-formatted textual content from the detailed report. Goal: Inform/Reference. Method: HTML/CSS.
+        - Additional Analysis (New View): Presents static, pre-formatted supplementary textual content from another detailed report. Goal: Inform/Reference. Method: HTML/CSS.
         CONFIRMATION: NO SVG graphics used. NO Mermaid JS used.
     -->
     <style>
@@ -75,6 +78,139 @@
             -webkit-backdrop-filter: blur(8px);
             background-color: rgba(240, 244, 248, 0.85);
         }
+
+        /* Styles for Flow Map */
+        .flow-container {
+            position: relative;
+            width: 95%;
+            max-width: 1800px; /* Increased max-width for three columns */
+            height: 1100px; /* Adjusted height for new node count and better spacing */
+            margin: 2rem auto;
+            background-color: white;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            overflow: hidden; /* Important to clip lines that go outside */
+        }
+
+        .node {
+            position: absolute;
+            background-color: #E2E8F0; /* Lightest Gray */
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 40px;
+            box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            width: 200px; /* Fixed width for nodes */
+            z-index: 10; /* Ensure nodes are above lines */
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .source-node { color: #073B4C; border: 1px solid #E2E8F0; }
+        .skill-node { color: #073B4C; border: 1px solid #E2E8F0; }
+        .industry-node { color: #073B4C; border: 1px solid #E2E8F0; }
+        
+        .flow-line {
+            position: absolute;
+            transform-origin: 0 50%; /* Rotate from the left edge, center vertically */
+            border-radius: 9999px; /* Rounded caps for lines */
+            opacity: 0.7;
+            transition: opacity 0.3s ease;
+            z-index: 5; /* Lines below nodes */
+            box-shadow: 0 0 3px rgba(0,0,0,0.1); /* Subtle shadow for depth */
+        }
+        
+        .thickness-1 { height: 5px; } /* Importance < 1.5 */
+        .thickness-2 { height: 8px; } /* Importance 1.5 - 2.4 */
+        .thickness-3 { height: 11px; } /* Importance 2.5 - 3.4 */
+        .thickness-4 { height: 14px; } /* Importance 3.5 - 4.4 */
+        .thickness-5 { height: 18px; } /* Importance >= 4.5 */
+
+        .node:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 12px -2px rgba(0,0,0,0.1);
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+            color: #4A5568;
+        }
+        .legend-color-box {
+            width: 18px;
+            height: 18px;
+            border-radius: 4px;
+            margin-right: 0.75rem;
+        }
+
+        /* Full Report Specific Styles */
+        .full-report-content h1, .additional-analysis-content h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: #073B4C;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+        .full-report-content h2, .additional-analysis-content h2 {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #073B4C;
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+        }
+        .full-report-content h3, .additional-analysis-content h3 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #073B4C;
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+        }
+        .full-report-content h4, .additional-analysis-content h4 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #2D3748;
+            margin-top: 1.25rem;
+            margin-bottom: 0.5rem;
+        }
+        .full-report-content p, .full-report-content ul, .full-report-content ol, .full-report-content table,
+        .additional-analysis-content p, .additional-analysis-content ul, .additional-analysis-content ol, .additional-analysis-content table {
+            font-size: 1rem;
+            line-height: 1.6;
+            color: #4A5568;
+            margin-bottom: 1rem;
+        }
+        .full-report-content ul, .full-report-content ol,
+        .additional-analysis-content ul, .additional-analysis-content ol {
+            list-style-position: inside;
+            padding-left: 1.25rem;
+        }
+        .full-report-content strong, .additional-analysis-content strong {
+            color: #2D3748;
+        }
+        .full-report-content table, .additional-analysis-content table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1.5rem;
+        }
+        .full-report-content th, .full-report-content td,
+        .additional-analysis-content th, .additional-analysis-content td {
+            border: 1px solid #CBD5E0;
+            padding: 0.75rem;
+            text-align: left;
+        }
+        .full-report-content th, .additional-analysis-content th {
+            background-color: #E2E8F0;
+            font-weight: 600;
+            color: #073B4C;
+        }
+        .full-report-content td, .additional-analysis-content td {
+            background-color: #FFFFFF;
+        }
     </style>
 </head>
 <body class="antialiased">
@@ -103,18 +239,871 @@
         </section>
 
         <nav class="sticky-nav py-4 mb-8 border-b-2 border-gray-300">
+            <div id="main-nav-selector" class="flex flex-wrap justify-center gap-2 mb-4">
+                <button id="nav-btn-analysis" data-view="industry-analysis" class="nav-button px-4 py-2 text-sm font-medium text-gray-700 bg-white rounded-md shadow-sm hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#073B4C] active">Industry Analysis</button>
+                <button id="nav-btn-flowmap" data-view="talent-flowmap" class="nav-button px-4 py-2 text-sm font-medium text-gray-700 bg-white rounded-md shadow-sm hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#073B4C]">Talent Flow Map</button>
+                <button id="nav-btn-full-report" data-view="full-report" class="nav-button px-4 py-2 text-sm font-medium text-gray-700 bg-white rounded-md shadow-sm hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#073B4C]">Full Report</button>
+                <button id="nav-btn-additional-analysis" data-view="additional-analysis" class="nav-button px-4 py-2 text-sm font-medium text-gray-700 bg-white rounded-md shadow-sm hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#073B4C]">Additional Analysis</button>
+            </div>
             <div id="industry-selector" class="flex flex-wrap justify-center gap-2">
                 <!-- Industry buttons will be populated by JS -->
             </div>
         </nav>
 
-        <main id="industry-analysis-section">
-            <div id="dynamic-content-area" class="space-y-12">
-                <!-- Industry-specific content will be dynamically inserted here -->
-            </div>
+        <main>
+            <section id="industry-analysis-view" class="space-y-12">
+                <div id="dynamic-content-area" class="space-y-12">
+                    <!-- Industry-specific content will be dynamically inserted here -->
+                </div>
+            </section>
+
+            <section id="talent-flowmap-view" class="hidden">
+                 <header class="text-center mb-12">
+                    <h1 class="text-4xl md:text-5xl font-extrabold text-[#073B4C] mb-4">U.S. Talent Pipeline: Connecting Sources, Skills & Industries</h1>
+                    <p class="text-lg md:text-xl text-gray-700 max-w-3xl mx-auto">This interactive **Talent Pipeline Flow Map** visually connects where critical skills are developed to where they are needed in key U.S. industries. While a true Sankey diagram is beyond current rendering capabilities (no SVG allowed), this approximation provides a comprehensive and dynamic view of the workforce ecosystem, highlighting pathways to domestic growth and defense supremacy.</p>
+                </header>
+
+                <section id="flow-visualization" class="mb-16">
+                    <h2 class="text-2xl font-bold text-center mb-6 text-[#073B4C]">Mapping the Flow of Talent to Critical Sectors</h2>
+                    <p class="section-subtitle">Explore the vital connections between educational institutions and training programs, the in-demand skills they cultivate, and the critical industries that rely on this talent. Hover over any node to precisely highlight its specific contributions and trace the flow of expertise.</p>
+
+                    <div id="flow-diagram-container" class="flow-container">
+                        <!-- Source Nodes (Column 1 - Left) -->
+                        <div id="source-node-universities-stem" class="node source-node" data-node-type="source" data-node-id="universities-stem">Universities (STEM/Eng)</div>
+                        <div id="source-node-nsf-grad-programs" class="node source-node" data-node-type="source" data-node-id="nsf-grad-programs">NSF Graduate Programs</div>
+                        <div id="source-node-microsoft-google-certs" class="node source-node" data-node-type="source" data-node-id="microsoft-google-certs">Microsoft/Google Certs</div>
+                        <div id="source-node-tidewater-cc-cyber" class="node source-node" data-node-type="source" data-node-id="tidewater-cc-cyber">Tidewater CC (Cyber)</div>
+                        <div id="source-node-semiconductor-ccs" class="node source-node" data-node-type="source" data-node-id="semiconductor-ccs">Semiconductor CCs</div>
+                        <div id="source-node-lockheed-amtap" class="node source-node" data-node-type="source" data-node-id="lockheed-amtap">Lockheed Martin AMTAP</div>
+                        <div id="source-node-hii-ingalls" class="node source-node" data-node-type="source" data-node-id="hii-ingalls">HII Ingalls Apprentice School</div>
+                        <div id="source-node-madison-machinist" class="node source-node" data-node-type="source" data-node-id="madison-machinist">Madison College Machinist Appr.</div>
+                        <div id="source-node-hennepin-robotics" class="node source-node" data-node-type="source" data-node-id="hennepin-robotics">Hennepin Tech (Robotics)</div>
+                        <div id="source-node-jvs-biomap" class="node source-node" data-node-type="source" data-node-id="jvs-biomap">JVS Boston BioMAP</div>
+                        <div id="source-node-illinois-ceja" class="node source-node" data-node-type="source" data-node-id="illinois-ceja">Illinois CEJA Programs</div>
+                        <div id="source-node-ai-bootcamps" class="node source-node" data-node-type="source" data-node-id="ai-bootcamps">AI/Data Science Bootcamps</div>
+                        <div id="source-node-medical-nursing-schools" class="node source-node" data-node-type="source" data-node-id="medical-nursing-schools">Medical/Nursing Schools</div>
+                        <div id="source-node-dod-skillbridge" class="node source-node" data-node-type="source" data-node-id="dod-skillbridge">DoD SkillBridge Programs</div>
+                        <div id="source-node-advanced-robotics-certs" class="node source-node" data-node-type="source" data-node-id="advanced-robotics-certs">Advanced Robotics Certs</div>
+
+
+                        <!-- Skill Nodes (Column 2 - Middle) -->
+                        <div id="skill-node-cybersecurity-operations" class="node skill-node" data-node-type="skill" data-node-id="cybersecurity-operations">Cybersecurity Operations</div>
+                        <div id="skill-node-ai-machine-learning" class="node skill-node" data-node-type="skill" data-node-id="ai-machine-learning">AI/Machine Learning/Data Science</div>
+                        <div id="skill-node-advanced-manufacturing-processes" class="node skill-node" data-node-type="skill" data-node-id="advanced-manufacturing-processes">Advanced Manufacturing Processes</div>
+                        <div id="skill-node-electrical-power-systems" class="node skill-node" data-node-type="skill" data-node-id="electrical-power-systems">Electrical & Power Systems</div>
+                        <div id="skill-node-semiconductor-fabrication" class="node skill-node" data-node-type="skill" data-node-id="semiconductor-fabrication">Semiconductor Fabrication</div>
+                        <div id="skill-node-biomanufacturing-lab-tech" class="node skill-node" data-node-type="skill" data-node-id="biomanufacturing-lab-tech">Biomanufacturing & Lab Tech</div>
+                        <div id="skill-node-aerospace-systems-engineering" class="node skill-node" data-node-type="skill" data-node-id="aerospace-systems-engineering">Aerospace Systems Engineering</div>
+                        <div id="skill-node-clinical-healthcare-delivery" class="node skill-node" data-node-type="skill" data-node-id="clinical-healthcare-delivery">Clinical Healthcare Delivery</div>
+                        <div id="skill-node-complex-problem-solving" class="node skill-node" data-node-type="skill" data-node-id="complex-problem-solving">Complex Problem Solving</div>
+                        <div id="skill-node-communication-teamwork" class="node skill-node" data-node-type="skill" data-node-id="communication-teamwork">Communication & Teamwork</div>
+                        <div id="skill-node-supply-chain-logistics" class="node skill-node" data-node-type="skill" data-node-id="supply-chain-logistics">Supply Chain & Logistics Mgmt</div>
+                        <div id="skill-node-repairing-maintenance-tech" class="node skill-node" data-node-type="skill" data-node-id="repairing-maintenance-tech">Repairing & Maintenance Tech</div>
+                        <div id="skill-node-systems-thinking-design" class="node skill-node" data-node-type="skill" data-node-id="systems-thinking-design">Systems Thinking & Design</div>
+                        <div id="skill-node-quality-control-analysis" class="node skill-node" data-node-type="skill" data-node-id="quality-control-analysis">Quality Control Analysis</div>
+
+                        <!-- Industry Nodes (Column 3 - Right) -->
+                        <div id="industry-node-energy-sector" class="node industry-node energy-sector" data-node-type="industry" data-node-id="energy-sector">Energy</div>
+                        <div id="industry-node-healthcare-biotech" class="node industry-node healthcare-biotech" data-node-type="industry" data-node-id="healthcare-biotech">Healthcare & Biotech Industry</div>
+                        <div id="industry-node-advanced-manufacturing-trades" class="node industry-node advanced-manufacturing-trades" data-node-type="industry" data-node-id="advanced-manufacturing-trades">Advanced Manufacturing & Industrial Trades</div>
+                        <div id="industry-node-ai-advanced-computing" class="node industry-node ai-advanced-computing" data-node-type="industry" data-node-id="ai-advanced-computing">AI & Advanced Computing</div>
+                        <div id="industry-node-semiconductor-microelectronics" class="node industry-node semiconductor-microelectronics" data-node-type="industry" data-node-id="semiconductor-microelectronics">Semiconductor (Microelectronics)</div>
+                        <div id="industry-node-cybersecurity-industry" class="node industry-node cybersecurity" data-node-type="industry" data-node-id="cybersecurity-industry">Cybersecurity</div>
+                        <div id="industry-node-aerospace-defense-industry" class="node industry-node aerospace-defense" data-node-type="industry" data-node-id="aerospace-defense-industry">Aerospace & Defense Industry</div>
+                    </div>
+
+                    <div class="text-center mt-6 max-w-5xl mx-auto">
+                        <h3 class="font-bold text-lg mb-2 text-[#073B4C]">Importance Level (Thickness of Band):</h3>
+                        <div class="flex justify-center items-center space-x-4 mb-4">
+                            <div class="flex items-center">
+                                <div class="thickness-1 bg-gray-400 w-12 rounded-full"></div><span class="ml-2 text-sm text-gray-600">Low (1-1.4)</span>
+                            </div>
+                            <div class="flex items-center">
+                                <div class="thickness-3 bg-gray-500 w-12 rounded-full"></div><span class="ml-2 text-sm text-gray-600">Medium (2.5-3.4)</span>
+                            </div>
+                            <div class="flex items-center">
+                                <div class="thickness-5 bg-gray-600 w-12 rounded-full"></div><span class="ml-2 text-sm text-gray-600">High (4.5-5)</span>
+                            </div>
+                        </div>
+                        
+                        <h3 class="font-bold text-lg mb-2 text-[#073B4C]">Skill Area Color Legend:</h3>
+                        <div id="skill-color-legend" class="flex flex-wrap justify-center gap-4 mb-6">
+                            <!-- Skill legend items will be populated by JavaScript -->
+                        </div>
+
+                        <h3 class="font-bold text-lg mb-2 text-[#073B4C]">Industry Color Legend:</h3>
+                        <div id="industry-flow-color-legend" class="flex flex-wrap justify-center gap-4">
+                            <!-- Industry legend items will be populated by JavaScript -->
+                        </div>
+                    </div>
+                </section>
+            </section>
+
+            <section id="full-report-view" class="hidden max-w-5xl mx-auto bg-white p-6 rounded-lg shadow-md full-report-content">
+                <h1 class="text-4xl font-extrabold text-[#073B4C]">Critical Industries for US Domestic Growth and Defense Supremacy: A 2025-2035 Outlook</h1>
+
+                <h2>Executive Summary</h2>
+                <p>The enduring strength and global leadership of the United States are intrinsically linked to the vitality and strategic staffing of its critical industries. This report identifies seven pivotal sectors—Energy; Healthcare and Biotech; Advanced Manufacturing & Industrial Trades; AI & Advanced Computing; Semiconductor (Microelectronics); Cybersecurity; and Aerospace & Defense—that are indispensable for both sustained domestic economic growth and the maintenance of "Pax Americana" (U.S. defense supremacy) over the next decade.</p>
+                <p>A pervasive challenge across these sectors is chronic understaffing, defined not merely by a lack of bodies but by a critical qualitative shortfall of qualified personnel with specialized skills. This deficit is exacerbated by an aging workforce, rapid technological advancements outpacing skill development, and intense competition for talent. Forecasts indicate that these shortages are likely to persist, and in some cases worsen, through 2035 without aggressive, coordinated interventions.</p>
+                <p>The report details the critical roles, essential O*NET-mapped skills, and key training pathways for each industry, alongside current and projected workforce gaps. It concludes that a multi-faceted national strategy, encompassing robust STEM education, expanded apprenticeships, continuous reskilling initiatives, and strategic public-private partnerships, is paramount to securing the nation's economic prosperity and military advantage in an increasingly complex global landscape.</p>
+
+                <h2>Methodology: Defining Critical Industries and Workforce Shortages</h2>
+                <p>The identification of "critical industries" for U.S. domestic economic growth and defense supremacy for the next decade is based on a comprehensive assessment of their indispensable role in national security, economic stability, and public well-being. This methodology draws upon established governmental definitions and contemporary strategic analyses.</p>
+
+                <h3>Criteria for "Critical Industries"</h3>
+                <p>Industries are deemed critical if their incapacitation or destruction would have a debilitating effect on national security, economic security, public health or safety, or any combination thereof. This definition extends beyond traditional physical infrastructure to encompass dynamic technological frontiers and essential services. Key characteristics that define their criticality include:</p>
+                <ul>
+                    <li><strong>National Security Imperative:</strong> These sectors directly support U.S. military capabilities, intelligence operations, and the ability to project power globally. This includes the defense industrial base, but also foundational technologies like semiconductors and AI that underpin modern warfare.</li>
+                    <li><strong>Economic Stability and Growth:</strong> Critical industries are significant contributors to GDP, job creation, and innovation. Their disruption would lead to severe economic consequences, including supply chain failures and financial losses. The Department of Commerce, through its various divisions like Manufacturing and the Supply Chain Center, emphasizes the importance of resilient manufacturing, services, and supply chains for overall U.S. economic competitiveness.</li>
+                    <li><strong>Public Health and Safety:</strong> Sectors vital for maintaining public health, providing emergency services, and ensuring the safety of the population are inherently critical.</li>
+                    <li><strong>Technological Superiority:</strong> Maintaining a leading edge in critical and emerging technologies (CETs) such as AI, quantum computing, and advanced semiconductors is paramount for both economic competitiveness and national security. Private sector investment in R&D by large technology companies is a significant driver of these strategic national security assets.</li>
+                    <li><strong>Supply Chain Resilience:</strong> Vulnerabilities in global supply chains, exposed by recent events, underscore the need for diversified and secure sourcing strategies, making industries that contribute to domestic production and resilient supply chains critical.</li>
+                </ul>
+
+                <h3>Definition of "Understaffed" and Reasons for Shortages</h3>
+                <p>In this strategic context, "understaffing" refers to a condition where an industry operates with fewer employees, or more critically, fewer *qualified* employees, than are necessary to effectively meet operational demands, fulfill responsibilities, and maintain the smooth, secure, and resilient functions essential for national security, economic stability, and public health and safety. This is often a qualitative shortfall, where the available workforce lacks the specialized skills and expertise required for critical roles.</p>
+                <p>Key indicators of understaffing include:</p>
+                <ul>
+                    <li>High job vacancy rates and long hiring times.</li>
+                    <li>Increased workload on existing employees, leading to burnout, reduced morale, and higher turnover rates.</li>
+                    <li>Compromised quality of service, decreased productivity, and missed strategic opportunities.</li>
+                    <li>Projects being delayed or production lines being constrained due to lack of workers.</li>
+                </ul>
+                <p>Worker shortages in these industries are foreseen due to a confluence of interconnected factors:</p>
+                <ul>
+                    <li><strong>Aging Workforce and Retirements:</strong> A significant portion of the current workforce in many critical sectors, particularly skilled trades and experienced technical roles, is nearing retirement age. There are insufficient younger workers entering the pipeline to replace them, leading to a critical loss of institutional knowledge and expertise.</li>
+                    <li><strong>Rapid Technological Advancement and Skills Gap:</strong> The accelerating pace of technological change (e.g., AI, automation, Industry 4.0) continuously creates new jobs demanding novel skills while simultaneously rendering some existing skills obsolete. The educational system often struggles to produce enough graduates with relevant, up-to-date skills. This creates a fundamental mismatch between available skills and industry needs.</li>
+                    <li><strong>Intense Competition for Talent:</strong> Critical industries are not only competing within their own sectors but also with other high-growth areas (e.g., tech firms competing for AI/software talent) for a limited pool of skilled professionals.</li>
+                    <li><strong>Shifting Workforce Preferences:</strong> Younger generations sometimes show a reluctance to pursue traditional "dull, dirty, or dangerous" manufacturing or trade roles, prioritizing meaningful work, flexibility, and work-life balance.</li>
+                    <li><strong>Inconsistent Demand Signals & Policy Gaps:</strong> For some sectors, unpredictable funding or policy signals can deter long-term investment in workforce development. Immigration policies can also make it difficult to retain foreign STEM graduates who could help fill gaps.</li>
+                </ul>
+
+                <h2>Analysis of Critical Industries</h2>
+
+                <h3>1. Energy</h3>
+                <h4>Why it's Critical:</h4>
+                <p>The energy sector is foundational to economic growth and national security, providing the power for industries, homes, and transportation. Energy security, including reliable fuel and power for military operations and critical infrastructure, is vital. The ongoing transition towards clean energy (solar, wind, nuclear, battery storage) is creating millions of new jobs and driving economic growth, while maintaining the aging grid and ensuring its resilience against cyberattacks are national security imperatives. The rapid rise of AI and its energy-intensive data centers are driving massive power demand, further increasing the need for skilled electrical workers to build and maintain the necessary grid infrastructure.</p>
+                <h4>Key Roles & O*NET Skills:</h4>
+                <ul>
+                    <li><strong>Electricians (O*NET 47-2111.00) & Power-Line Installers:</strong>
+                        <ul>
+                            <li><strong>Skills:</strong> Troubleshooting, Repairing, Installation, Critical Thinking, Active Listening, Safety Consciousness, Attention to Detail, Dependability, Teamwork.</li>
+                            <li><strong>Knowledge:</strong> Electrical systems, wiring, safety codes, building & construction, mechanical systems, mathematics, design.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Solar Photovoltaic (PV) Installers (O*NET 47-2231.00):</strong>
+                        <ul>
+                            <li><strong>Skills:</strong> Installation, Critical Thinking, Active Listening, Judgment and Decision Making, Quality Control Analysis, Problem-solving, Physical Stamina.</li>
+                            <li><strong>Knowledge:</strong> Solar panel systems, electrical schematics, basic electrical and carpentry skills, safety equipment.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Wind Turbine Technicians (O*NET 49-9081.00):</strong>
+                        <ul>
+                            <li><strong>Skills:</strong> Equipment Maintenance, Operations Monitoring, Repairing, Troubleshooting, Critical Thinking, Complex Problem Solving, Teamwork, Communication, Problem-solving, Adaptability to confined spaces/heights.</li>
+                            <li><strong>Knowledge:</strong> Mechanical, hydraulic, and electrical systems (gearboxes, generators, control systems), diagnostic software, PLCs.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Power Systems Engineers (O*NET 17-2071.00 - Electrical Engineers):</strong>
+                        <ul>
+                            <li><strong>Skills:</strong> Writing, Critical Thinking, Complex Problem Solving, Mathematics, Systems Analysis, Systems Evaluation, Project Management, Communication.</li>
+                            <li><strong>Knowledge:</strong> Power generation, transmission, and distribution systems, grid stability, high-voltage equipment, smart grid, renewable integration, power system modeling software, regulatory standards.</li>
+                        </ul>
+                    </li>
+                </ul>
+                <h4>Training Pathways:</h4>
+                <ul>
+                    <li><strong>Apprenticeships:</strong> Formal apprenticeships (4-5 years) are primary for electricians and power-line installers, combining classroom and on-the-job training. Unions are ramping up these programs.</li>
+                    <li><strong>Vocational/Technical Schools:</strong> Programs for solar PV installers (a few months to 1 year of on-the-job training) and wind turbine technicians (1-2 year programs, often Associate's degrees). Examples include Los Angeles Trade Technical College (Solar Thermal) and Illinois CEJA Workforce Training Programs (Clean Jobs Workforce Network, Climate Works Pre-apprenticeship).</li>
+                    <li><strong>University Programs:</strong> Bachelor's degrees in electrical engineering (often with Power Engineering concentration) for Power Systems Engineers.</li>
+                    <li><strong>Federal Initiatives:</strong> U.S. Department of Energy (DOE) Workforce Development Affiliate Programs (via NREL) and DoD SkillBridge program.</li>
+                </ul>
+                <h4>Current & Forecasted Shortages:</h4>
+                <ul>
+                    <li><strong>Current:</strong> The energy sector faces significant challenges from an aging workforce, with nearly half of current utility power workforce retiring within the next decade. Non-retirement turnover has also increased. Shortages are acute for skilled trades (electricians, lineworkers, renewable technicians). A U.S. industry report projects a total shortage of about 1.1 million workers if new climate and infrastructure investments play out without sufficient training. Electrician jobs are projected to grow 11% by 2033, with 80,000 openings per year, while 4 out of 10 electricians are over 45.</li>
+                    <li><strong>Forecasted (Next 5-10 Years):</strong> The sector will remain critical, with demand rising due to electrification and EV growth. Shortages could persist as retirements peak and clean energy build-out continues. The push for clean energy will create millions of new jobs (3-5 million in the next decade), exacerbating skilled labor shortages in the short term. The gap may start to shrink toward the end of the decade if training programs catch up, but near-term project delays are possible.</li>
+                </ul>
+
+                <h3>2. Healthcare and Biotech Industry</h3>
+                <h4>Why it's Critical:</h4>
+                <p>Healthcare is a massive economic sector (nearly 18% of U.S. GDP) and essential for societal well-being and national resilience. Biotech and pharmaceutical innovation are strategic for economic competitiveness (e.g., vaccine development) and biodefense. Advances in biotechnology are critical emerging technologies.</p>
+                <h4>Key Roles & O*NET Skills:</h4>
+                <ul>
+                    <li><strong>Registered Nurses (RNs) (O*NET 29-1141.00):</strong>
+                        <ul>
+                            <li><strong>Skills:</strong> Clinical nursing (patient assessment, medication administration, medical equipment operation), Communication, Interpersonal skills, Empathy, Stress Management, Attention to Detail.</li>
+                            <li><strong>Knowledge:</strong> Anatomy, pharmacology, care practices, health technology (EHR).</li>
+                        </ul>
+                    </li>
+                    <li><strong>Medical and Clinical Laboratory Technologists/Technicians (O*NET 29-2011.00):</strong>
+                        <ul>
+                            <li><strong>Skills:</strong> Laboratory techniques, instrumentation, quality control analysis, troubleshooting analyzers, Attention to Detail, Problem-solving, Communication.</li>
+                            <li><strong>Knowledge:</strong> Biology, Medicine & Dentistry, Chemistry, lab information systems.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Biotech Research Scientists (O*NET 19-1021.00 - Biochemists and Biophysicists) & Technicians (O*NET 29-2011.00 - Medical and Clinical Laboratory Technologists):</strong>
+                        <ul>
+                            <li><strong>Skills:</strong> Deep domain knowledge (biochemistry, genetics, bioinformatics), lab research (experiment design, equipment operation, data analysis), Analytical & Critical Thinking, Attention to Detail, Communication.</li>
+                            <li><strong>Knowledge:</strong> Biology, Chemistry, English Language, Mathematics, Physics, Computers & Electronics, Engineering & Technology.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Physicians (O*NET 29-1229.00 - All Other, including various specialties):</strong>
+                        <ul>
+                            <li><strong>Skills:</strong> Reading Comprehension, Active Listening, Critical Thinking, Judgment and Decision Making, Complex Problem Solving, Writing, Science, Service Orientation, Social Perceptiveness, Time Management.</li>
+                            <li><strong>Knowledge:</strong> Medicine and Dentistry, Biology, English Language, Psychology, Education and Training, Therapy and Counseling, Customer and Personal Service, Administration and Management, Computers and Electronics.</li>
+                        </ul>
+                    </li>
+                </ul>
+                <h4>Training Pathways:</h4>
+                <ul>
+                    <li><strong>University Programs:</strong> Bachelor of Science in Nursing (BSN), Associate Degree in Nursing (ADN), Master's or Doctoral for advanced practice nurses. Bachelor's in medical technology or life sciences for lab technologists. Advanced degrees (Master's/Ph.D.) for Biotech Research Scientists.</li>
+                    <li><strong>Medical Residency Programs:</strong> USC Department of Family Medicine's residency program addresses primary care physician shortages.</li>
+                    <li><strong>Biomanufacturing Training:</strong> JVS Boston's BioMAP (4-8 week, free, part-time) and San Jacinto College's Biomanufacturing Technology program (AAS degrees and certificates).</li>
+                    <li><strong>Accelerated Programs:</strong> For those with degrees in other fields to enter nursing.</li>
+                </ul>
+                <h4>Current & Forecasted Shortages:</h4>
+                <ul>
+                    <li><strong>Current:</strong> The sector faces significant staffing shortages, with ~1.39 million job openings in healthcare and social assistance as of late 2024. Shortages are acute for nurses, physicians (especially primary care and certain specialties), and allied health workers. The Surgeon General warns of a deficit of ~3 million low-wage healthcare workers by 2027 and ~140,000 physicians by 2033. Nursing shortages are widespread, exacerbated by burnout. Biotech faces a paradoxical talent shortage despite layoffs, with a low unemployment rate of 2.8% for specialized roles like biomanufacturing and computational tech.</li>
+                    <li><strong>Forecasted (Next 5-10 Years):</strong> Healthcare will remain critical and high-growth due to an aging population (seniors will be ~26% of Americans by 2035). Shortages are expected to continue, with forecasts projecting tens of thousands of physician shortfalls by 2030+ and large nurse deficits. By 2030, a deficit of up to 3 million healthcare workers (doctors, nurses, aides) is plausible. Biotech jobs will grow, but shortages in R&D expertise (e.g., gene therapy specialists) will persist.</li>
+                </ul>
+
+                <h3>3. Advanced Manufacturing & Industrial Trades</h3>
+                <h4>Why it's Critical:</h4>
+                <p>A strong manufacturing base and skilled trade workforce are critical for U.S. economic vitality and the defense industrial base. This includes advanced manufacturing (aerospace parts, machinery, electronics) and construction trades (welders, machinists, electricians, carpenters) that build and maintain infrastructure and factories. Manufacturing has a multiplier effect on the economy, driving innovation and exports. For defense, these trades build tanks, ships, and aircraft. Domestic production capacity is vital for supply chain resilience.</p>
+                <h4>Key Roles & O*NET Skills:</h4>
+                <ul>
+                    <li><strong>CNC Machinists (O*NET 51-4041.00) & Tool and Die Makers:</strong>
+                        <ul>
+                            <li><strong>Skills:</strong> Operating machine tools (lathes, milling, CNC), blueprint reading, CAD/CAM programming, machine maintenance, tooling setup, Problem-solving, Adaptability, Attention to Detail.</li>
+                            <li><strong>Knowledge:</strong> Mathematics, Mechanical, Production and Processing, Design.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Welders and Fabricators (O*NET 51-4121.00):</strong>
+                        <ul>
+                            <li><strong>Skills:</strong> Various welding processes (MIG, TIG, Stick), reading welding symbols, material selection, cutting equipment use, quality checks, Manual Dexterity, Hand-eye Coordination, Safety, Quality focus.</li>
+                            <li><strong>Knowledge:</strong> Production and Processing, Mechanical.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Industrial Maintenance Mechanics/Mechatronics Technicians (O*NET 17-3024.01 - Robotics Technicians):</strong>
+                        <ul>
+                            <li><strong>Skills:</strong> Maintaining/repairing factory equipment (conveyors, motors, robots, pneumatic/hydraulic systems), diagnosing faults (schematics, multimeters, PLC software), Preventive Maintenance, Analytical Thinking, Patience, Flexibility, Communication.</li>
+                            <li><strong>Knowledge:</strong> Computers and Electronics, Engineering and Technology, Mechanical, Design, English Language, Mathematics, Production and Processing, Physics.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Construction Trades (e.g., Plumbers, HVAC Technicians, Electricians - O*NET 47-2111.00):</strong>
+                        <ul>
+                            <li><strong>Skills:</strong> Craft-specific proficiency (pipefitting, refrigeration cycles), understanding codes/regulations, Problem-solving, Customer Service, Collaboration.</li>
+                            <li><strong>Knowledge:</strong> Building and Construction, Administration and Management, Mechanical, Mathematics, Design, Customer and Personal Service.</li>
+                        </ul>
+                    </li>
+                </ul>
+                <h4>Training Pathways:</h4>
+                <ul>
+                    <li><strong>Vocational Schools & Apprenticeships:</strong> Primary pathway for machinists (1-2 year programs or 4-year apprenticeships), welders (few months to 2 years technical training + certification), and industrial maintenance techs (1-2 year technical programs or 3-4 year apprenticeships). Construction trades predominantly use 4-5 year apprenticeships and state licensing.</li>
+                    <li><strong>Industry Certifications:</strong> NIMS for machinists, AWS for welders, MSSC for maintenance techs.</li>
+                    <li><strong>Community College Partnerships:</strong> Customized curricula (e.g., 18-month mechatronics certificate).</li>
+                    <li><strong>DoD SkillBridge Program:</strong> Eases transition of military personnel into civilian roles.</li>
+                    <li><strong>Manufacturing Institute (MI):</strong> Supports workforce development through training programs, community building, and career growth.</li>
+                    <li><strong>ARM Institute:</strong> Focuses on preparing the U.S. manufacturing workforce for robotics, AI, and advanced technologies.</li>
+                </ul>
+                <h4>Current & Forecasted Shortages:</h4>
+                <ul>
+                    <li><strong>Current:</strong> Well-documented shortage of skilled tradespeople and manufacturing workers. Manufacturing and construction roles see record-high labor pressure, with wages up >20% (2020-2024). For certain trades, ~20 job openings for every 1 new entrant. 370,000 construction jobs open in late 2024. Acute welding shortage (average welder nearing retirement age, 400,000+ gap by mid-2020s). Causes: demographic turnover (50% of manufacturing workers 45-65) and pipeline problems.</li>
+                    <li><strong>Forecasted (Next 5-10 Years):</strong> Will remain critical, with shortages likely to continue without significant intervention. Federal investments (infrastructure, CHIPS Act, clean energy) will increase demand. One study forecasts a shortage of 1.1 million skilled workers across key trades by end of decade. Apprenticeship enrollment is rising, but may not fully offset retirements. Shortages likely persist through 2030, especially during peak reindustrialization efforts.</li>
+                </ul>
+
+                <h3>4. Artificial Intelligence (AI) & Advanced Computing</h3>
+                <h4>Why it's Critical:</h4>
+                <p>AI is a transformative industry driving economic growth and is strategic for defense supremacy. AI and related fields (machine learning, data science, autonomous systems, HPC) enable innovations across all sectors, boosting productivity and creating new markets. From a national security standpoint, AI is a "new arms race," offering military advantages (autonomous weapons, intelligence analysis, cyber operations). U.S. leadership in AI/software is essential for the digital economy and next-generation defense capabilities.</p>
+                <h4>Key Roles & O*NET Skills:</h4>
+                <ul>
+                    <li><strong>Data Scientists (O*NET 15-2051.00) / Machine Learning Engineers:</strong>
+                        <ul>
+                            <li><strong>Skills:</strong> Programming (Python, R, Java), statistics, machine learning algorithms, data manipulation, model building, data visualization, big data frameworks (Hadoop/Spark), Analytical Thinking, Problem-solving, Communication, Creative Thinking, Curiosity.</li>
+                            <li><strong>Knowledge:</strong> Mathematics, Science (Biology, Chemistry, Physics, Psychology, Sociology), Computers and Electronics.</li>
+                        </ul>
+                    </li>
+                    <li><strong>AI Research Scientists / Computer & Information Research Scientists (O*NET 15-1221.00):</strong>
+                        <ul>
+                            <li><strong>Skills:</strong> Deep knowledge of algorithms, computational complexity, NLP, computer vision, advanced math (linear algebra, calculus, optimization), software engineering for AI, Innovation, Critical Thinking, Perseverance, Collaboration.</li>
+                            <li><strong>Knowledge:</strong> Computers and Electronics, Mathematics, Engineering and Technology, English Language, Administration and Management, Design, Telecommunications.</li>
+                        </ul>
+                    </li>
+                    <li><strong>High-Performance Computing (HPC) Engineers / Cloud Architects:</strong>
+                        <ul>
+                            <li><strong>Skills:</strong> Parallel computing, distributed systems, cloud platforms, optimizing algorithms for speed/scale, managing clusters, C++/CUDA, cloud services (AWS, Azure, GCP), containerization (Docker, Kubernetes), Problem-solving, System Architecture, Communication.</li>
+                            <li><strong>Knowledge:</strong> Computer engineering, computer science, scientific computing, IT infrastructure.</li>
+                        </ul>
+                    </li>
+                </ul>
+                <h4>Training Pathways:</h4>
+                <ul>
+                    <li><strong>University Programs:</strong> Bachelor's degrees in computer science, data science, or related quantitative fields; Master's or Ph.D. for advanced AI research roles.</li>
+                    <li><strong>Specialized Master's Programs:</strong> E.g., University of Central Missouri's MS in Data Science and AI.</li>
+                    <li><strong>Online Courses & Certifications:</strong> Can bolster credentials.</li>
+                    <li><strong>Bootcamps & Specialized Training:</strong> AI Makerspace's AI Engineering Bootcamp (10 weeks), Big Blue Data Academy, BrainStation, Codesmith, Constructor Academy.</li>
+                    <li><strong>NSF Initiatives:</strong> Supports graduate students and innovative programs in STEM, including IGE and NRT.</li>
+                    <li><strong>Internal Upskilling Programs:</strong> Big tech firms and governments invest in these.</li>
+                </ul>
+                <h4>Current & Forecasted Shortages:</h4>
+                <ul>
+                    <li><strong>Current:</strong> Demand far exceeds supply. 44% of executives report lack of in-house AI experts as a barrier. AI-related job postings surged 21% annually since 2019. Bain & Company projects ~1.3 million AI-related job openings by 2027, with supply tracking towards ~645,000, implying a shortfall of up to 700,000 AI workers. Competition for AI talent drives high salaries. Public sector struggles to attract talent.</li>
+                    <li><strong>Forecasted (Next 5-10 Years):</strong> AI will remain critical and grow exponentially. Talent shortage likely persists through at least 2027. By 2030, more AI specialists from graduate programs and interdisciplinary talent may emerge, but demand may still outstrip supply. International competition for AI talent is a factor. Shortages may shift (basic AI programming more common, but cutting-edge research talent scarce).</li>
+                </ul>
+
+                <h3>5. Semiconductor (Microelectronics)</h3>
+                <h4>Why it's Critical:</h4>
+                <p>The semiconductor industry is the backbone of the modern digital economy and a linchpin for defense technologies. Virtually every advanced system relies on microchips. A robust domestic sector is critical for U.S. economic growth and national security, especially given past supply chain vulnerabilities. Semiconductors drive innovation in AI, 5G, quantum computing, and advanced weaponry.</p>
+                <h4>Key Roles & O*NET Skills:</h4>
+                <ul>
+                    <li><strong>Semiconductor Processing Technicians (O*NET 51-9141.00):</strong>
+                        <ul>
+                            <li><strong>Skills:</strong> Operation and monitoring of high-tech fabrication equipment, quality control analysis, equipment troubleshooting, Attention to Detail, Critical Thinking, Communication.</li>
+                            <li><strong>Knowledge:</strong> Production and Processing, English Language, Public Safety and Security, Computers and Electronics, Education and Training, Chemistry.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Microelectronics Engineers (O*NET 17-2071.00 - Electrical/Electronic Engineers):</strong>
+                        <ul>
+                            <li><strong>Skills:</strong> Circuit design, semiconductor physics, computer electronics (EDA software, VLSI design, testing), Analytical Thinking, Problem-solving, Collaboration.</li>
+                            <li><strong>Knowledge:</strong> Engineering and Technology, Computers and Electronics, Design, English Language, Mathematics, Physics, Production and Processing, Mechanical, Public Safety and Security, Customer and Personal Service.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Materials & Process Engineers:</strong>
+                        <ul>
+                            <li><strong>Skills:</strong> Chemical engineering/materials science expertise (silicon wafer processing, photolithography chemistry, thin-film deposition), analyzing process data, optimizing yields, Complex Problem-solving, Attention to Detail.</li>
+                            <li><strong>Knowledge:</strong> Chemical engineering, materials science.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Maintenance and Equipment Technicians:</strong>
+                        <ul>
+                            <li><strong>Skills:</strong> Electro-mechanical proficiency (maintaining/repairing fab tools), reading schematics, diagnostic software, precise adjustments, Communication, Dexterity.</li>
+                            <li><strong>Knowledge:</strong> Electronics technology, mechatronics.</li>
+                        </ul>
+                    </li>
+                </ul>
+                <h4>Training Pathways:</h4>
+                <ul>
+                    <li><strong>University Programs:</strong> Bachelor's degrees in electrical/electronics engineering (baseline), Master's or Ph.D. for R&D roles. Many university engineering departments are expanding semiconductor-specific degrees or specializations.</li>
+                    <li><strong>Community College Training:</strong> Certificate or Associate's degrees in microelectronics or industrial electronics for technicians. Over 50 community colleges have new/expanded programming. Partnerships with companies like Samsung and Micron.</li>
+                    <li><strong>Apprenticeships:</strong> Growing number of programs for equipment technicians.</li>
+                    <li><strong>Industry Certifications:</strong> In semiconductor process technology.</li>
+                    <li><strong>National Initiatives:</strong> National Semiconductor Technology Center (NSTC) funds advanced training. NSF funds R&D programs for engineers/scientists.</li>
+                </ul>
+                <h4>Current & Forecasted Shortages:</h4>
+                <ul>
+                    <li><strong>Current:</strong> Acute talent shortage, projected to worsen. U.S. faces a shortage of 67,000+ technicians, computer scientists, and engineers by 2030. Up to 146,000 positions may go unfilled by 2029, including >50,000 engineers. Companies struggle to find talent for both advanced chip design and manufacturing. Advertised salaries jumped >35% since CHIPS Act.</li>
+                    <li><strong>Forecasted (Next 5-10 Years):</strong> Will remain absolutely critical, with shortages likely to continue unless aggressively addressed. Demand for chips will climb due to AI, IoT, 5G, advanced weapons. Over 1 million additional skilled workers needed globally by 2030. Talent pipeline takes years to scale up (6-10+ years for many engineers). U.S. could still see tens of thousands of chip jobs unfilled through late-2020s. Shortage likely persists through the decade, potentially constraining growth.</li>
+                </ul>
+
+                <h3>6. Cybersecurity</h3>
+                <h4>Why it's Critical:</h4>
+                <p>Cybersecurity is essential for safeguarding the U.S. economy, critical infrastructure, and defense apparatus. It protects financial systems, power grids, military communications, and weapons systems from ever-growing cyber threats. A robust cyber sector is directly tied to national security and economic stability, and is an engine of economic growth.</p>
+                <h4>Key Roles & O*NET Skills:</h4>
+                <ul>
+                    <li><strong>Information Security Analysts (O*NET 15-1212.00):</strong>
+                        <ul>
+                            <li><strong>Skills:</strong> Networks, operating systems, cybersecurity tools (firewalls, IDS, encryption), systems analysis, monitoring, risk assessment, Critical Thinking, Complex Problem-solving, Communication.</li>
+                            <li><strong>Knowledge:</strong> Computer science, information technology.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Network and Computer Systems Administrators (with Security focus) (O*NET 15-1244.00):</strong>
+                        <ul>
+                            <li><strong>Skills:</strong> Configuring secure networks, managing user access controls, scripting for automation, troubleshooting, incident response, Detail-oriented, Dependability, Communication.</li>
+                            <li><strong>Knowledge:</strong> Enterprise networks, cloud systems.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Cybersecurity Engineers / Penetration Testers:</strong>
+                        <ul>
+                            <li><strong>Skills:</strong> Programming/scripting, secure software development, penetration testing, cryptography, malware analysis, ethical hacking, Innovation, Initiative, Problem-solving under pressure.</li>
+                            <li><strong>Knowledge:</strong> Computer science, engineering.</li>
+                        </ul>
+                    </li>
+                </ul>
+                <h4>Training Pathways:</h4>
+                <ul>
+                    <li><strong>University Programs:</strong> Bachelor's degrees in computer science, IT, or related fields. More universities offer cybersecurity degrees.</li>
+                    <li><strong>Industry Certifications:</strong> CISSP, CompTIA Security+, Certified Ethical Hacker (CEH), Certified Network Defender (CND).</li>
+                    <li><strong>Bootcamps & Community College Programs:</strong> Cybersecurity bootcamps, community college programs combined with certification exams. Microsoft's national campaign with U.S. community colleges aims to place 250,000 people into the workforce. Tidewater Community College (TCC) offers NSA-approved programs.</li>
+                    <li><strong>Apprenticeships:</strong> Cyber apprenticeships, veteran transition programs. Examples include IBM, DHS CSAP, Boeing, CyberForward, Purdue, Accenture, Apprenti.</li>
+                    <li><strong>Continuous Learning:</strong> Capture-the-flag exercises, cybersecurity competitions.</li>
+                    <li><strong>NIST/NICE:</strong> Provides framework for cybersecurity tasks, knowledge, skills, and abilities, and supports community-based education.</li>
+                </ul>
+                <h4>Current & Forecasted Shortages:</h4>
+                <ul>
+                    <li><strong>Current:</strong> Notoriously understaffed. ~460,000 U.S. cybersecurity job openings as of 2025, roughly equal to current employed workforce. Global workforce gap ~4.76 million (2024), a 19% increase. 67% of organizations report staffing shortage. Skills gaps are a bigger issue than staffing gaps (90% global, 91% critical infrastructure). Budget limitations are a top driver for understaffing. Public and private sectors struggle to compete for talent.</li>
+                    <li><strong>Forecasted (Next 5-10 Years):</strong> Will remain critical and high-demand, facing ongoing shortages. Global unfilled positions could reach ~3.5 million. U.S. share will remain substantial (hundreds of thousands needed). Job growth expected to surge 33% (2023-2033). Emerging AI technologies may augment but not replace human cyber professionals. Shortages expected to continue for at least 2+ years.</li>
+                </ul>
+
+                <h3>7. Aerospace and Defense Industry</h3>
+                <h4>Why it's Critical:</h4>
+                <p>The A&D sector underpins U.S. military superiority and contributes enormously to the economy. It designs and manufactures military aircraft, ships, satellites, missiles, and advanced defense systems, all essential for national security. It also includes commercial aerospace, a high-tech export industry. Supply chain resilience is critical, and recent geopolitical conflicts highlight the need for robust domestic production.</p>
+                <h4>Key Roles & O*NET Skills:</h4>
+                <ul>
+                    <li><strong>Aerospace Engineers (O*NET 17-2011.00):</strong>
+                        <ul>
+                            <li><strong>Skills:</strong> Engineering design, physics, advanced mathematics (aerodynamics, materials, systems engineering), CAD/simulation, Critical Thinking, Complex Problem-solving, Communication, Teamwork.</li>
+                            <li><strong>Knowledge:</strong> Engineering and Technology, Mathematics, Design, Physics, Computers and Electronics, English Language, Mechanical, Production and Processing.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Aircraft Mechanics & Service Technicians (O*NET 49-3011.00):</strong>
+                        <ul>
+                            <li><strong>Skills:</strong> Aircraft systems maintenance (airframes, engines, hydraulics, avionics), troubleshooting mechanical/electrical issues, inspections, Quality Standards, Detail-oriented, Communication, Teamwork.</li>
+                            <li><strong>Knowledge:</strong> Aircraft systems, FAA regulations.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Electrical/Electronics & Systems Engineers (O*NET 17-2071.00 - Electrical Engineers):</strong>
+                        <ul>
+                            <li><strong>Skills:</strong> Electronics, computer systems, control software (radar, communications), systems integration, cybersecurity, Analytical Thinking, Innovation, Project Management, Communication.</li>
+                            <li><strong>Knowledge:</strong> Electrical engineering, computer engineering.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Precision Manufacturing Trades (Machinists - O*NET 51-4041.00, Welders - O*NET 51-4121.00, Technicians):</strong>
+                        <ul>
+                            <li><strong>Skills:</strong> High precision machining, blueprint reading, CAD/CAM programming, specialized welding, technical drawings, Attention to Detail, Dependability, Teamwork, Adaptability.</li>
+                            <li><strong>Knowledge:</strong> Mathematics, Mechanical, Production and Processing, Design.</li>
+                        </ul>
+                    </li>
+                </ul>
+                <h4>Training Pathways:</h4>
+                <ul>
+                    <li><strong>University Programs:</strong> Bachelor's (baseline) to Master's/Ph.D. for engineers (aerospace, mechanical, electrical, computer engineering).</li>
+                    <li><strong>Vocational Training & Apprenticeships:</strong> Postsecondary aviation maintenance programs (FAA A&P certification) for mechanics. High school + vocational training/apprenticeships for precision manufacturing trades.</li>
+                    <li><strong>Industry Certifications:</strong> FAA A&P, CISSP (for security roles).</li>
+                    <li><strong>Workforce Initiatives:</strong> DoD SkillBridge program. AIA advocates for federal/state investments in education and apprenticeships. Lockheed Martin's AMTAP & SAP. HII's Ingalls Apprentice School.</li>
+                </ul>
+                <h4>Current & Forecasted Shortages:</h4>
+                <ul>
+                    <li><strong>Current:</strong> Struggling to fill jobs despite growth. Over two-thirds of U.S. manufacturers (including defense contractors) cite workforce as a primary challenge. 25% of A&D workforce is at or beyond retirement age. High attrition (~15% in 2024). Shortages in engineering (especially digital/software skills like AI, automation) and skilled trades (machinists, technicians, mechanics). U.S. aerospace sector needs 123,000 additional aircraft technicians in next two decades. Defense firms face fierce competition from big tech for software/AI experts.</li>
+                    <li><strong>Forecasted (Next 5-10 Years):</strong> Will remain critical, with importance growing amid global threats. Shortages likely persist due to retirements and demand. Gap could widen without intervention as defense production ramps up. Global shortage of semiconductor engineers (exceeding 1 million by 2030) impacts defense projects. U.S. needs 3,800 new aerospace engineers annually (2021-2031). Staffing shortfalls likely remain a strategic challenge through 2030.</li>
+                </ul>
+
+                <h2>Conclusion: Persistent Challenges and Strategic Imperatives</h2>
+                <p>The analysis unequivocally demonstrates that the U.S. faces a critical and persistent workforce strain across its most vital industries. These sectors are not merely economic drivers but are fundamental pillars of national security and global influence. The common threads of an aging workforce, a rapidly evolving skills landscape driven by technological innovation, and intense competition for talent underscore a systemic challenge that transcends individual industries.</p>
+                <p>Looking ahead to 2035, all identified industries are poised to remain critical, or even become more so. Geopolitical competition, the accelerating pace of technological advancement (especially in AI and advanced computing), and evolving societal needs will continue to place immense pressure on the talent pipeline. While efforts are underway—from federal investments in STEM education and apprenticeships to private sector initiatives for talent development—the sheer scale of the projected shortages (often in the hundreds of thousands or millions globally) suggests that these industries will continue to experience staffing challenges well into the next decade.</p>
+                <p>To secure its economic growth and maintain "Pax Americana," the U.S. must adopt a comprehensive, long-term national strategy focused on:</p>
+                <ul>
+                    <li><strong>Scaling and Modernizing Education:</strong> Significantly expanding and updating STEM education pipelines from K-12 through graduate studies, with curricula directly aligned to emerging industry needs in AI, semiconductors, and advanced manufacturing.</li>
+                    <li><strong>Elevating Vocational and Apprenticeship Pathways:</strong> Investing heavily in and promoting skilled trades through robust apprenticeship programs and vocational training, making these careers attractive and accessible to a new generation.</li>
+                    <li><strong>Fostering Lifelong Learning and Reskilling:</strong> Implementing widespread upskilling and reskilling initiatives to ensure the existing workforce can adapt to new technologies and fill evolving roles, particularly in areas like cybersecurity and AI.</li>
+                    <li><strong>Strengthening Public-Private Partnerships:</strong> Enhancing collaboration between government, industry, and academia to co-develop training programs, share resources, and create clear career pathways.</li>
+                    <li><strong>Strategic Immigration Policies:</strong> Considering reforms to immigration policies to attract and retain high-skilled global talent in critical STEM fields, complementing domestic workforce development efforts.</li>
+                </ul>
+                <p>Failure to address these deep-seated workforce challenges risks undermining the nation's economic stability, its capacity for innovation, and its ability to maintain a decisive military advantage in the coming decade. Prioritizing workforce development in these critical industries is not just an economic choice, but a national security imperative.</p>
+            </section>
+
+            <section id="additional-analysis-view" class="hidden max-w-5xl mx-auto bg-white p-6 rounded-lg shadow-md additional-analysis-content">
+                <h1 class="text-4xl font-extrabold text-[#073B4C]">Critical U.S. Industry Workforce Analysis</h1>
+
+                <h2>Energy Industry</h2>
+                <p>The energy sector encompasses electricity generation, petroleum/natural gas extraction and refining, nuclear, and renewables (solar, wind, hydro). Key roles include Electrical Engineers (O*NET 17-2071.00), Mechanical Engineers (17-2141.00), Power-Plant Operators (51-8011.00), Electrical Power-Line Installers (49-9051.00), Wind Turbine Technicians (49-9081.00), Solar Photovoltaic Installers (47-2231.00) and HVAC Technicians (49-9021.00). For example, solar PV installers typically enter with a high school diploma plus a certificate or associate degree in solar technology. Wind-techs often train at trade schools or community colleges (e.g. 2-year “wind technician” programs) and receive on-the-job certification (climbing, electrical safety). Electricians and power-line installers usually complete multi-year apprenticeships or trade-school programs, often through unions or community college certificates. Nuclear and petroleum engineers generally hold 4-year STEM degrees (often requiring security clearance or field training) plus industry-specific certifications (e.g. NACE corrosion or API petroleum certs).</p>
+                <h3>Training pathways:</h3>
+                <p>Energy jobs rely on a mix of degree programs and vocational training. Community colleges and technical schools offer certificates/associate degrees (e.g. Electrician Apprenticeship Program; Power Plant Technology Associate’s). Many large utilities and companies partner with apprenticeships (e.g. Center for Energy Workforce Development initiatives) and sponsor “stackable” credentials. Universities also offer specialized bachelor’s/master’s programs in energy engineering, nuclear science or petroleum engineering. Short, intensive programs (bootcamps or industry courses) train technicians in solar installation, wind power maintenance, or smart-grid technology.</p>
+                <h3>Workforce shortages:</h3>
+                <p>Industry reports emphasize serious shortages of skilled energy workers. The Center for Energy Workforce Development notes “mounting workforce shortages and historic hiring pressures” in energy systems. For example, BLS notes a current scarcity of trained wind-energy technicians, driving high wage premiums in that field. Renewable roles are growing fast: PV installer jobs are expected to grow ~48% by 2033. DOE’s 2024 Energy & Employment Report (USEER) highlights 8.4 million U.S. energy jobs and notes many openings in generation and efficiency, though it does not quantify a gap. The Energy Sector faces retirements (many aging utility engineers) and insufficient new entrants, prompting calls for expanded training pipelines.</p>
+                <h3>Summary of key Energy roles and training:</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Role</th>
+                            <th>O*NET Code</th>
+                            <th>Key Skills</th>
+                            <th>Training Pathways</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Electrical Engineer</td>
+                            <td>17-2071.00</td>
+                            <td>Circuit design, power systems analysis</td>
+                            <td>Bachelor’s in EE (ABET), PE licensure, industry training</td>
+                        </tr>
+                        <tr>
+                            <td>Mechanical Engineer (Energy)</td>
+                            <td>17-2141.00</td>
+                            <td>Thermodynamics, systems design</td>
+                            <td>Bachelor’s in ME, optional MS, internships</td>
+                        </tr>
+                        <tr>
+                            <td>Power Plant Operator</td>
+                            <td>51-8011.00</td>
+                            <td>System control, diagnostics</td>
+                            <td>Technical certificate or associate degree; on-the-job training in plants</td>
+                        </tr>
+                        <tr>
+                            <td>Electrician (Utility/Construction)</td>
+                            <td>47-2111.00</td>
+                            <td>Wiring, problem solving</td>
+                            <td>4-5 year apprenticeship (NECA/IEC programs); technical school</td>
+                        </tr>
+                        <tr>
+                            <td>Wind Turbine Technician</td>
+                            <td>49-9081.00</td>
+                            <td>Turbine mechanics, safety</td>
+                            <td>2-year wind technician program or certificate, turbine-manufacturer training</td>
+                        </tr>
+                        <tr>
+                            <td>Solar PV Installer</td>
+                            <td>47-2231.00</td>
+                            <td>PV system installation</td>
+                            <td>Trade school/community college solar tech. certificate; OSHA/NABCEP cert</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h2>Healthcare and Biotech Industry</h2>
+                <p>This sector spans medical services and life-science R&D. Key healthcare roles include Registered Nurses (O*NET 29-1141.00), Physicians and Surgeons (29-1069.00), Nurse Practitioners (29-1171.00), Physician Assistants (29-1071.00), Pharmacists (29-1051.00), Medical Laboratory Technicians (29-2010.00/19-4041.00), Healthcare IT Specialists, and Medical Assistants (31-9092.00). In biotech/R&D, roles include Biological/Medical Scientists (19-1029.00), Biochemists and Biophysicists (19-1021.00), Biomedical Engineers (17-2031.00), and Biological Technicians (19-4021.00). Skill sets cover clinical care, laboratory methods, molecular biology, data analysis, and regulatory compliance.</p>
+                <h3>Training pathways:</h3>
+                <p>Healthcare careers require formal education and licensing. RNs typically earn associate or bachelor’s degrees (ADN/BSN) and pass the NCLEX exam. Physicians complete undergraduate pre-med, medical school (MD/DO), and residency. Nurse Practitioners/Physician Assistants require graduate degrees and certification (e.g. NCCPA for PAs). Technical roles like Lab Technicians often train via 2-year accredited programs (CET or MLT programs) or on-the-job vocational training, with certification from ASCP or AMT. Pharmacists need a PharmD. In biotech, scientists generally have BS/MS/PhDs in biology, chemistry or bioengineering; biotech technicians may enter via associate degrees or certificate programs in biotechnology or biomanufacturing. Apprenticeships are less common in healthcare, but exist for roles like biomedical equipment technician or pharmacy tech. Online bootcamps and professional certificates (e.g. in bioinformatics, data science, regulatory affairs) supplement formal degrees.</p>
+                <h3>Workforce shortages:</h3>
+                <p>The U.S. faces well-documented shortages in healthcare staffing. HRSA projects a U.S. RN shortfall of ~63,700 full-time equivalents by 2030 (after hitting ~78,600 in 2025), driven by retirements and population aging. The Association of American Medical Colleges (AAMC) estimates a physician shortage up to ~86,000 by 2036. Specialty shortages (mental health, geriatric care) are acute. Biotech labs also report talent gaps: rapid growth in life-science R&D has “dramatically” outpaced workforce expansion. Indeed, despite a ~79% growth in U.S. life-science researchers over 20 years, companies still “struggle to find skilled workers”. This has led to high demand for bioinformatics and clinical-trial specialists, especially with expansions in pharma and personalized medicine (e.g. increased NIH funding, COVID vaccine production). In summary, both healthcare and biotech have strong job growth forecasts (e.g. BLS projects 11% growth for medical scientists) and face significant shortfalls of trained personnel.</p>
+                <h3>Summary of Healthcare/biotech roles and training:</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Role</th>
+                            <th>O*NET Code</th>
+                            <th>Key Skills</th>
+                            <th>Training Pathways</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Registered Nurse (RN)</td>
+                            <td>29-1141.00</td>
+                            <td>Clinical patient care, pharma</td>
+                            <td>BSN/ADN program + NCLEX licensing</td>
+                        </tr>
+                        <tr>
+                            <td>Nurse Practitioner</td>
+                            <td>29-1171.00</td>
+                            <td>Advanced clinical care, diagnostics</td>
+                            <td>Master’s (MSN/DNP) + NP certification</td>
+                        </tr>
+                        <tr>
+                            <td>Physician</td>
+                            <td>29-1069.00</td>
+                            <td>Diagnosis, surgery, management</td>
+                            <td>MD/DO (med school + 3-7yr residency)</td>
+                        </tr>
+                        <tr>
+                            <td>Pharmacist</td>
+                            <td>29-1051.00</td>
+                            <td>Pharmacology, patient counseling</td>
+                            <td>Pharm.D. degree + NAPLEX licensure</td>
+                        </tr>
+                        <tr>
+                            <td>Medical Lab Technician</td>
+                            <td>19-4021.00</td>
+                            <td>Lab testing, microscopy</td>
+                            <td>Associate degree in clinical lab science; ASCP/MIC certification</td>
+                        </tr>
+                        <tr>
+                            <td>Biomedical Engineer</td>
+                            <td>17-2031.00</td>
+                            <td>Device design, biomaterials</td>
+                            <td>BS/MS in biomedical engineering; internships</td>
+                        </tr>
+                        <tr>
+                            <td>Biochemist / Biophysicist</td>
+                            <td>19-1021.00</td>
+                            <td>Molecular analysis, lab research</td>
+                            <td>PhD or MS in biochemistry/molecular bio</td>
+                        </tr>
+                        <tr>
+                            <td>Bioinformatics/Data Scientist</td>
+                            <td>15-2041.00</td>
+                            <td>Data analysis, programming</td>
+                            <td>BS/MS in bioinformatics, computational bio, or data science</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h2>Advanced Manufacturing and Industrial Trades</h2>
+                <p>Advanced manufacturing covers high-tech production (robotics, composites, electronics) and traditional industrial trades. Key roles include Machinists (O*NET 51-4041.00), CNC Machine Operators (51-4011.00), Welders (51-4121.00), Industrial Machinery Mechanics (49-9041.00), Production Assemblers (51-2098.00), Quality Control Inspectors (51-9061.00), Industrial Engineers (17-2112.00, 17-2141.00), and Industrial Robotics Technicians/Engineers. Many aerospace and defense projects also require Sheet Metal Workers, Pipefitters, Electricians and HVAC Mechanics (trades covered under 49-2000 series). Skills span mechanical aptitude, precision measurement, CAD, PLC programming, and lean manufacturing methods.</p>
+                <h3>Training pathways:</h3>
+                <p>Trades often use apprenticeship models and community college programs. For example, machinists and welders can train via multi-year apprenticeships through unions (IAM, UAW) or through technical schools offering certificates (e.g. CNC operator programs). Community colleges offer associate degrees in Manufacturing Technology or Mechatronics, combining electronics and mechanics. Many manufacturers partner with programs like FAME (Federation for Advanced Manufacturing Education) and M-List to co-train students. Certifications from NIMS (National Institute for Metalworking Skills) in machining, robotics, and quality (Six Sigma) are common. Engineering and IT roles (industrial/automation engineers) typically require a 4-year engineering degree (mechanical, mechatronics, EE) plus industry co-ops. Short “bootcamp” courses in robotics, 3D printing, or PLC programming also help reskill workers.</p>
+                <h3>Workforce shortages:</h3>
+                <p>The manufacturing sector faces a large projected labor gap. A Deloitte/Manufacturing Institute study warns that by 2033 up to 3.8 million manufacturing jobs will be needed, with ~1.9 million likely unfilled without action. Of these, roughly 2.1 million could go unfilled by 2030 due to skill gaps. Surveyed manufacturers cite difficulty retaining and recruiting workers, with 65% naming talent shortage as a top business challenge. Factors include an aging workforce (many current machinists/mechanics are nearing retirement) and insufficient youth entering trades. High-tech manufacturing amplifies demand: jobs like robotics technician or advanced CNC operator require specialized technical education that few complete. The result is widespread reports of unfilled positions and rising wages for skilled trades (as noted in the energy sector above, similar pressures exist across manufacturing).</p>
+                <h3>Summary of Advanced Manufacturing roles and training:</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Role</th>
+                            <th>O*NET Code</th>
+                            <th>Key Skills</th>
+                            <th>Training Pathways</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Machinist</td>
+                            <td>51-4041.00</td>
+                            <td>Precision machining, blueprint reading</td>
+                            <td>Machining certificate or 2-year degree; apprenticeship; NIMS credentials</td>
+                        </tr>
+                        <tr>
+                            <td>CNC Operator</td>
+                            <td>51-4011.00</td>
+                            <td>CNC programming, tooling</td>
+                            <td>Vocational training or associate in CNC machining; on-the-job training</td>
+                        </tr>
+                        <tr>
+                            <td>Welder (Metal Fabricator)</td>
+                            <td>51-4121.00</td>
+                            <td>Welding (MIG/TIG), metallurgy</td>
+                            <td>1-2 year welding certificate; apprenticeship; AWS certification</td>
+                        </tr>
+                        <tr>
+                            <td>Industrial Maintenance Technician</td>
+                            <td>49-9041.00</td>
+                            <td>Mechanical/electrical repair, PLCs</td>
+                            <td>2-year electromech/mechatronics program; maintenance technician certificate</td>
+                        </tr>
+                        <tr>
+                            <td>Quality Inspector</td>
+                            <td>51-9061.00</td>
+                            <td>Precision measuring, QC methods</td>
+                            <td>Inspection certificate; on-the-job or technical school training (Metrology)</td>
+                        </tr>
+                        <tr>
+                            <td>Industrial Engineer</td>
+                            <td>17-2112.00</td>
+                            <td>Process optimization, CAD</td>
+                            <td>Bachelor’s in industrial/eng. technology or engineering</td>
+                        </tr>
+                        <tr>
+                            <td>Robotics Technician</td>
+                            <td>17-3026.00 (mech. engineering tech.)</td>
+                            <td>Robotics repair, sensors</td>
+                            <td>2-year mechatronics or robotics tech program; manufacturer training</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h2>Artificial Intelligence and Advanced Computing</h2>
+                <p>This sector includes AI/ML development, data science, high-performance and quantum computing, and cloud architecture. Key roles include Data Scientists (15-2041.00), Machine Learning Engineers (similar to software dev, 15-1252.00), Computer and Information Research Scientists (15-2011.00, AI researchers), Software Developers/Engineers specializing in AI (15-1252.00), Cloud/Systems Architects (15-1299.00), and Hardware Engineers (17-2061.00 for computer hardware/quantum). AI skills involve statistics, ML algorithms, programming (Python, R, C++), data engineering, and domain knowledge. Advanced computing also needs Cybersecurity Analysts (for AI security), DevOps/Cloud Engineers, and AI Project Managers.</p>
+                <h3>Training pathways:</h3>
+                <p>AI roles generally require strong STEM backgrounds. Universities now offer specialized AI or data science degrees at the BS, MS or PhD level. Leading programs (e.g. CMU, MIT, Stanford) combine computer science with ML courses. Shorter options include certificate programs (e.g. AWS/GCP AI courses, edX nanodegrees in ML) and intensive coding bootcamps in data science or AI. Many workers transition from related fields (statisticians, software developers, mathematicians) via retraining. Professional certifications (Google’s TensorFlow, Microsoft’s Azure AI Engineer, Nvidia’s Deep Learning Institute) signal expertise. Defense-focused AI training is growing (NSCAI and DARPA initiatives); some DoD academies now have AI curricula. Collaborative training (e.g. industry-academia partnerships on AI labs) is emerging to build talent.</p>
+                <h3>Workforce shortages:</h3>
+                <p>Demand for AI and computing specialists far outstrips supply. BLS projects extremely rapid growth: Data Scientists jobs are expected to surge ~36% from 2023–33, with ~17,300 new openings per year, and Research Scientists in Computing (AI researchers) about 26% growth. LinkedIn reports similarly brisk expansion of AI-related roles (e.g. AI Engineer). Despite this demand, reports indicate few workers possess deep AI skills (many existing data scientists transitioning from other fields). One analysis notes a global shortfall of AI talent into the millions. Generative AI has further spiked hiring for machine learning specialists. In summary, virtually all forecasts see a major shortage of skilled AI professionals, a shortage driven by extremely fast technology advances and the centrality of AI to industries from defense to finance.</p>
+                <h3>Summary of AI/Advanced Computing roles and training:</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Role</th>
+                            <th>O*NET Code</th>
+                            <th>Key Skills</th>
+                            <th>Training Pathways</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Data Scientist</td>
+                            <td>15-2041.00</td>
+                            <td>Statistics, ML models, Python/R</td>
+                            <td>Bachelor’s in CS/Math + Master’s/bootcamp in data science</td>
+                        </tr>
+                        <tr>
+                            <td>ML/AI Engineer (Software)</td>
+                            <td>15-1252.00</td>
+                            <td>ML frameworks, algorithms, programming</td>
+                            <td>BS/MS in CS or software engineering; AI specializations; coding bootcamps</td>
+                        </tr>
+                        <tr>
+                            <td>Computer & Info Research Scientist (AI researcher)</td>
+                            <td>15-2011.00</td>
+                            <td>AI theory, algorithms, experimentation</td>
+                            <td>Master’s or PhD in CS/AI</td>
+                        </tr>
+                        <tr>
+                            <td>DevOps/Cloud Engineer (AI Ops)</td>
+                            <td>15-1299.00</td>
+                            <td>Cloud platforms, CI/CD, security</td>
+                            <td>BS in CS or IT + cloud certifications (AWS/Azure/Google)</td>
+                        </tr>
+                        <tr>
+                            <td>Hardware/Quantum Engineer</td>
+                            <td>17-2061.00</td>
+                            <td>Circuits, quantum algorithms</td>
+                            <td>PhD or MS in EE/Physics for quantum; BS in EE for hardware</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h2>Semiconductor (Microelectronics) Industry</h2>
+                <p>Semiconductors are the cornerstone of modern electronics. Key roles include Semiconductor Processing Technicians (O*NET 51-9141.00), Fabrication Engineers (17-2141.00 mechanical or 17-2071.00 electrical engineers with fab experience), Materials/Chip Designers (17-2151.00 Materials Engineers, 15-2031.00 Computer Hardware Engineers), Test/Quality Engineers, Equipment Service Technicians, and Package/Assembly Operators. Cleanroom operation skills, lithography, etching and deposition processes, and precision metrology are essential. O*NET notes that ~84% of entry technicians have only a high school education, reflecting that many fab operators train via on-the-job programs or 1-2 year technical certificates in semiconductor manufacturing. In contrast, engineers typically hold bachelor’s degrees in EE, ME, materials science or chemistry, often with additional fab-specific training.</p>
+                <h3>Training pathways:</h3>
+                <p>Specialized community college programs have sprung up (e.g. semiconductor technology A.A.S. degrees) to feed fabs. Companies are launching apprenticeships (e.g. Intel, TSMC) and micro-credentials in partnership with NSF/CHIPS initiatives. The CHIPS Act has incentivized over 80 community colleges to add semiconductor curricula. Many new hires learn through manufacturer-sponsored bootcamps or rotations. Universities offer microelectronics tracks, and graduate programs in electrical/materials engineering are key for design and R&D roles. Certifications (e.g. from the Semiconductor Training & Education Program) and stackable credentials (from cleanroom safety to equipment maintenance) are being developed under CHIPS workforce grants.</p>
+                <h3>Workforce shortages:</h3>
+                <p>The booming semiconductor industry suffers acute talent gaps. The Semiconductor Industry Association predicts about 70,000 U.S. chip jobs (22% of the industry) will go unfilled by 2030, chiefly in engineering and technician roles. In other words, as fabs scale up under CHIPS funding, tens of thousands of skilled workers are needed. Real-world signs include rising pay: CHIPS-funded firms are offering pay 35-79% higher than comparable jobs to attract trainees. Moreover, Lightcast analysis indicates continuing large gaps: many early-career semiconductor workers are being poached or retired, and even with training programs started, the pipeline is thin. Thus, quantitative projections point to shortages measured in the tens of thousands in the coming decade.</p>
+                <h3>Summary of Semiconductor roles and training:</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Role</th>
+                            <th>O*NET Code</th>
+                            <th>Key Skills</th>
+                            <th>Training Pathways</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Semiconductor Process Technician</td>
+                            <td>51-9141.00</td>
+                            <td>Cleanroom processes, precision controls</td>
+                            <td>HS diploma + employer on-the-job training; semiconductor certificate or associate</td>
+                        </tr>
+                        <tr>
+                            <td>Process/Equipment Engineer</td>
+                            <td>17-2112.00* (Industrial Eng.) / 17-2141.00</td>
+                            <td>Semiconductor fabrication processes</td>
+                            <td>BS in EE/ME/Chem Eng + on-job fab training</td>
+                        </tr>
+                        <tr>
+                            <td>Chip Design Engineer</td>
+                            <td>15-2031.00 (Computer Hardware Eng.)</td>
+                            <td>VLSI design, CAD tools, analog/digital</td>
+                            <td>BS/MS in EE/Comp Eng with semiconductor focus</td>
+                        </tr>
+                        <tr>
+                            <td>Materials/Optical Engineer</td>
+                            <td>19-1021.00 (Chemist/Materials)</td>
+                            <td>Semiconductor materials, optics</td>
+                            <td>BS/MS in materials science or chemistry</td>
+                        </tr>
+                        <tr>
+                            <td>Test/Quality Engineer</td>
+                            <td>17-2112.00</td>
+                            <td>Test methodologies, statistical QC</td>
+                            <td>BS in engineering + Six Sigma/quality certifications</td>
+                        </tr>
+                        <tr>
+                            <td>Die Attach/Assembly Operator</td>
+                            <td>51-1011.00 (Assemblers)</td>
+                            <td>Microassembly, soldering</td>
+                            <td>HS diploma + specialized assembly training</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h2>Cybersecurity Industry</h2>
+                <p>Cybersecurity spans roles protecting information systems across all sectors. Key roles include Information Security Analysts (15-1212.00), Security Engineers/Architects (15-1199.01-.09 misc. computer occupations), Cyber Threat Analysts/Penetration Testers, Network Security Engineers (15-1241.00), Incident Responders, and Risk/Compliance Officers. Skills cover network defense, encryption, vulnerability assessment, and digital forensics. Many roles require knowledge of emerging areas (cloud security, AI in cyber).</p>
+                <h3>Training pathways:</h3>
+                <p>Cybersecurity careers often start with a computer science or IT bachelor’s degree. Certifications are crucial: CISSP, Security+, CEH, CISM, and GIAC credentials. Government-sponsored apprenticeships (e.g. NSA’s Cyber Aptitude Program, DoD CYSP) exist, and many firms create entry-level “cybersecurity analyst” training programs. Cybersecurity bootcamps and hackathons provide intensive skills. Some community colleges offer A.A.S. degrees in network security. Notably, the NICE framework encourages both degree and “skills-based” hires. Ongoing professional training (vendor certs, SANS courses) is standard to keep pace with new threats.</p>
+                <h3>Workforce shortages:</h3>
+                <p>Cyber jobs have an acute and quantifiable gap. A recent White House report (Lightcast Q2 2024) estimated 225,200 U.S. cybersecurity positions unfilled (i.e. a 15% shortfall). Demand is especially acute for mid-level roles: only ~77% of needed staff with 2+ years' experience are available. Growth is rapid: BLS projects 33% growth in Information Security Analysts from 2023–33. Globally, ISC2 estimates ~4.8 million cybersecurity professionals are needed. Surveys find roughly two-thirds of organizations cite staffing shortages as a critical issue. Key drivers include legacy understaffing, rapid tech change, and high attrition (e.g. layoffs and stress). Agencies and companies are expanding training pipelines, but metrics show the gap remains large and rising.</p>
+                <h3>Summary of Cybersecurity roles and training:</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Role</th>
+                            <th>O*NET Code</th>
+                            <th>Key Skills</th>
+                            <th>Training Pathways</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Information Security Analyst</td>
+                            <td>15-1212.00</td>
+                            <td>Risk assessment, intrusion detection</td>
+                            <td>BS in CS/Information Tech + security certs (CISSP, Security+)</td>
+                        </tr>
+                        <tr>
+                            <td>Network Security Engineer</td>
+                            <td>15-1241.00</td>
+                            <td>Network protocols, firewalls</td>
+                            <td>BS in CIS or EE + CCNA/CCNP, Security+</td>
+                        </tr>
+                        <tr>
+                            <td>Penetration Tester / Ethical Hacker</td>
+                            <td>15-1199.09</td>
+                            <td>Vulnerability analysis, exploit writing</td>
+                            <td>BS in CS + OSCP/CEH certifications</td>
+                        </tr>
+                        <tr>
+                            <td>Cybersecurity Manager</td>
+                            <td>11-3021.00</td>
+                            <td>Policy, compliance, leadership</td>
+                            <td>BS/MS in cybersecurity/management + CISSP</td>
+                        </tr>
+                        <tr>
+                            <td>Digital Forensics Analyst</td>
+                            <td>15-1199.12</td>
+                            <td>Forensic tools, evidence handling</td>
+                            <td>BS in cybersecurity/forensics + EnCE/GCIH cert</td>
+                        </tr>
+                        <tr>
+                            <td>Security Architect</td>
+                            <td>15-1252.00 (soft. dev)</td>
+                            <td>Secure system design, threat modeling</td>
+                            <td>BS/MS in CS + CISSP/CISM</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h2>Aerospace and Defense Industry</h2>
+                <p>This broad sector covers military and civilian aviation, space systems, and defense equipment. Key roles include Aerospace Engineers (O*NET 17-2011.00) for aircraft/spacecraft design, Mechanical/Electrical Engineers (17-2141.00, 17-2071.00) for systems integration, Systems Engineers, Avionics Technicians (49-2094.00), Aircraft Mechanics/A&P Technicians (49-3011.00), Manufacturing Engineers, and Pilots (53-2011.00) or Unmanned Vehicle Operators. In defense, roles also span Weapon Systems Engineers, Software/AI Specialists for military tech, and Ship/Naval Engineers. Skills include aerodynamics, propulsion, guidance/navigation, composite materials, control systems, and adherence to strict safety/certification standards.</p>
+                <h3>Training pathways:</h3>
+                <p>Engineers generally require 4-year (BS/MS) engineering degrees. Many aerospace engineers have ABET-accredited aerospace, mechanical or electrical engineering degrees, and often earn security clearances for defense work. Technicians follow apprenticeship or FAA certification routes: Aircraft Mechanics must complete an FAA-approved A&P (Airframe & Powerplant) program or equivalent military training. Avionics technicians get associate degrees or certificates in avionics/EE. Military and contractor training programs (like ROTC, service academies, industry traineeships) feed the sector. Specialized programs exist (e.g. NASA co-ops, Space Force's STARBASE for youth STEM, or community college Aviation Maintenance programs). Continuous education (e.g. SCORM, DAR training) is common.</p>
+                <h3>Workforce shortages:</h3>
+                <p>Aerospace/defense demand remains high globally. Boeing forecasts 674,000 new commercial pilots and 716,000 new maintenance technicians needed worldwide by 2043, reflecting fleet expansion. Although U.S.-specific projections are rarer, the global shortages imply similar U.S. trends (civil aviation demand and military fleet modernization). BLS projects aerospace engineers growth at ~6% by 2033 (faster than average), and aircraft mechanics 5%. The driver is a surge in orders and retirements: many current defense engineers and technicians are aging out. For example, an estimated 30% of U.S. pilots were over age 60 pre-COVID. DoD reports often cite gaps in skilled trades (e.g. machinists, electronic techs) and STEM specialists (cyber/AI for defense). Hence, industry sources warn of multi-year talent pipelines needed to avoid delays in defense projects and aircraft production.</p>
+                <h3>Summary of Aerospace/Defense roles and training:</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Role</th>
+                            <th>O*NET Code</th>
+                            <th>Key Skills</th>
+                            <th>Training Pathways</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Aerospace Engineer</td>
+                            <td>17-2011.00</td>
+                            <td>Aerodynamics, CAD, propulsion</td>
+                            <td>BS in Aerospace or ME (ABET-accredited)</td>
+                        </tr>
+                        <tr>
+                            <td>Aircraft Mechanic (A&P)</td>
+                            <td>49-3011.00</td>
+                            <td>Airframe/engine maintenance</td>
+                            <td>FAA A&P certificate (2-year program or military)</td>
+                        </tr>
+                        <tr>
+                            <td>Avionics Technician</td>
+                            <td>49-2094.00</td>
+                            <td>Avionics systems, electronics</td>
+                            <td>Associate degree or certificate in avionics; FCC license</td>
+                        </tr>
+                        <tr>
+                            <td>Pilot (Commercial/Military)</td>
+                            <td>53-2011.00</td>
+                            <td>Flight operations, navigation</td>
+                            <td>Commercial Pilot License (CPL) or Air Force/Army flight school</td>
+                        </tr>
+                        <tr>
+                            <td>Systems Engineer</td>
+                            <td>17-2011.05</td>
+                            <td>Integrated systems design</td>
+                            <td>BS/MS in Systems or EE/Comp Eng; often with security clearance</td>
+                        </tr>
+                        <tr>
+                            <td>Radar/Defense Tech</td>
+                            <td>49-2091.00 (Inst. technician)</td>
+                            <td>RF systems, maintenance</td>
+                            <td>Technical college diploma in instrumentation/electronics</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
         </main>
         
     </div>
+
+<footer class="text-center mt-12 pt-8 border-t border-gray-300">
+    <p class="text-gray-500">Data synthesized from O*NET and relevant industry reports. This visualization is a conceptual representation and not a dynamically generated Sankey diagram. No SVG or Mermaid JS was used in this document.</p>
+</footer>
 
 <script>
 const industryData = {
@@ -127,8 +1116,8 @@ const industryData = {
         },
         chartData: {
             labels: ["Electricians", "Solar Installers", "Wind Techs", "Power Engineers"],
-            shortage: [80200, 15000, 5000, 19000], // Annual openings/shortage
-            growth: [11, 22, 45, 6] // Projected % growth by 2033
+            shortage: [80200, 15000, 5000, 19000],
+            growth: [11, 22, 45, 6]
         },
         roles: [
             { name: "Electricians", onet: "47-2111.00", skills: ["Troubleshooting", "Repairing", "Installation", "Critical Thinking"], pathways: { "Apprenticeship": 70, "Vocational School": 30 } },
@@ -143,7 +1132,7 @@ const industryData = {
         ]
     },
     healthcare: {
-        title: "Healthcare and Biotech",
+        title: "Healthcare and Biotech Industry",
         criticality: "Essential for societal well-being, national resilience, and economic stability (nearly 18% of GDP). Biotech innovation is strategic for economic competitiveness and biodefense, making it a critical emerging technology field.",
         shortage: {
             current: "Significant shortages of nurses, physicians, and lab technologists. The U.S. Surgeon General warns of a potential deficit of 3 million low-wage healthcare workers by 2027 and 140,000 physicians by 2033.",
@@ -151,8 +1140,8 @@ const industryData = {
         },
         chartData: {
             labels: ["Registered Nurses", "Physicians", "Lab Technologists", "Biotech Scientists"],
-            shortage: [203000, 140000, 25000, 10000], // Projected annual openings / total shortage
-            growth: [6, 3, 7, 5] // Projected % growth by 2033
+            shortage: [203000, 140000, 25000, 10000],
+            growth: [6, 3, 7, 5]
         },
         roles: [
             { name: "Registered Nurses (RNs)", onet: "29-1141.00", skills: ["Patient Assessment", "Communication", "Critical Thinking", "Empathy"], pathways: { "Bachelor's Degree": 60, "Associate's Degree": 40 } },
@@ -175,8 +1164,8 @@ const industryData = {
         },
         chartData: {
             labels: ["Machinists (CNC)", "Welders", "Industrial Mechanics", "Construction Trades"],
-            shortage: [90000, 400000, 50000, 500000], // Projected total shortage by 2030s
-            growth: [4, 2, 10, 5] // Projected % growth by 2033
+            shortage: [90000, 400000, 50000, 500000],
+            growth: [4, 2, 10, 5]
         },
         roles: [
             { name: "CNC Machinists", onet: "51-4041.00", skills: ["Blueprint Reading", "CAD/CAM Programming", "Operation & Control", "Quality Control"], pathways: { "Apprenticeship": 50, "Vocational School": 50 } },
@@ -191,7 +1180,7 @@ const industryData = {
         ]
     },
     ai: {
-        title: "Artificial Intelligence & Advanced Computing",
+        title: "AI and Advanced Computing",
         criticality: "AI is a transformative general-purpose technology driving the next wave of economic growth and is central to modern defense strategy. U.S. leadership in AI, data science, and high-performance computing is essential for both economic and national security.",
         shortage: {
             current: "Demand for AI talent far outstrips supply. Projections show a potential shortfall of nearly 700,000 AI workers in the U.S. by 2027 as companies across all sectors rush to adopt AI.",
@@ -199,8 +1188,8 @@ const industryData = {
         },
         chartData: {
             labels: ["Data Scientists", "ML Engineers", "AI Research Scientists", "HPC Engineers"],
-            shortage: [250000, 250000, 100000, 50000], // Projected total U.S. shortage by 2027
-            growth: [36, 35, 23, 15] // Projected % growth by 2033
+            shortage: [250000, 250000, 100000, 50000],
+            growth: [36, 35, 23, 15]
         },
         roles: [
             { name: "Data Scientists / ML Engineers", onet: "15-2051.00", skills: ["Programming (Python/R)", "Machine Learning Algorithms", "Statistics", "Data Visualization"], pathways: { "Master's Degree": 50, "Bachelor's Degree": 40, "PhD": 10 } },
@@ -222,8 +1211,8 @@ const industryData = {
         },
         chartData: {
             labels: ["Processing Techs", "Microelectronics Engineers", "Materials Engineers", "Maintenance Techs"],
-            shortage: [40000, 20000, 5000, 2000], // Projected U.S. shortage by 2030
-            growth: [5, 6, 4, 8] // Projected % growth by 2033
+            shortage: [40000, 20000, 5000, 2000],
+            growth: [5, 6, 4, 8]
         },
         roles: [
             { name: "Processing Technicians", onet: "51-9141.00", skills: ["Equipment Operation", "Quality Control", "Troubleshooting", "Attention to Detail"], pathways: { "Associate's Degree": 60, "Certificate": 40 } },
@@ -246,8 +1235,8 @@ const industryData = {
         },
         chartData: {
             labels: ["Security Analysts", "Network Admins", "Engineers", "Pen Testers"],
-            shortage: [200000, 100000, 100000, 50000], // Estimated current U.S. job openings
-            growth: [32, 5, 15, 15] // Projected % growth by 2033
+            shortage: [200000, 100000, 100000, 50000],
+            growth: [32, 5, 15, 15]
         },
         roles: [
             { name: "Information Security Analysts", onet: "15-1212.00", skills: ["Risk Assessment", "System Monitoring", "Firewall/IDS Management", "Incident Response"], pathways: { "Bachelor's Degree": 70, "Certifications": 30 } },
@@ -262,7 +1251,7 @@ const industryData = {
         ]
     },
     aerospace: {
-        title: "Aerospace and Defense",
+        title: "Aerospace and Defense Industry",
         criticality: "The A&D industry is the cornerstone of U.S. military power and a major high-tech exporter. A robust domestic industrial base is essential for producing next-generation aircraft, satellites, and defense systems.",
         shortage: {
             current: "Facing a dual crisis of an aging workforce (25% near retirement) and intense competition for digital talent. Shortages are severe for engineers with software/AI skills and for skilled trades like high-precision machinists.",
@@ -270,8 +1259,8 @@ const industryData = {
         },
         chartData: {
             labels: ["Aerospace Engineers", "Aircraft Mechanics", "Electronics Engineers", "Skilled Trades"],
-            shortage: [4200, 6000, 5000, 20000], // Projected annual openings / shortage
-            growth: [6, 4, 5, 3] // Projected % growth by 2033
+            shortage: [4200, 6000, 5000, 20000],
+            growth: [6, 4, 5, 3]
         },
         roles: [
             { name: "Aerospace Engineers", onet: "17-2011.00", skills: ["Aerodynamics", "Systems Engineering", "CAD/Simulation", "Complex Problem Solving"], pathways: { "Bachelor's Degree": 70, "Master's Degree": 30 } },
@@ -385,7 +1374,7 @@ function createShortageChart(canvasId, data) {
     });
 }
 
-function renderIndustry(industryKey) {
+function renderIndustryAnalysis(industryKey) {
     const data = industryData[industryKey];
     const contentArea = document.getElementById('dynamic-content-area');
 
@@ -420,7 +1409,7 @@ function renderIndustry(industryKey) {
     `).join('');
 
     contentArea.innerHTML = `
-        <div id="${industryKey}" class="space-y-12">
+        <div id="${industryKey}-content" class="space-y-12">
             <section>
                 <h2 class="text-3xl font-bold text-center text-[#073B4C] mb-4">${data.title}</h2>
                 <p class="text-center max-w-3xl mx-auto text-gray-700">${data.criticality}</p>
@@ -455,7 +1444,6 @@ function renderIndustry(industryKey) {
         </div>
     `;
 
-    // Wait for the DOM to update, then create charts
     setTimeout(() => {
         createShortageChart(`shortage-chart-${industryKey}`, data.chartData);
         data.roles.forEach((role, index) => {
@@ -464,18 +1452,380 @@ function renderIndustry(industryKey) {
     }, 0);
 }
 
+// Flow Map Data & Functions
+const COLORS = {
+    red: '#FF6B6B',
+    yellow: '#FFD166',
+    mint: '#06D6A0',
+    blue: '#118AB2',
+    teal: '#073B4C',
+    blueViolet: '#8A2BE2',
+    darkOrange: '#FF8C00',
+    orchid: '#DA70D6',
+    steelBlue: '#4682B4',
+    lightSeaGreen: '#20B2AA',
+    indigo: '#4C51BF',
+    purpleHeart: '#6A057F',
+    burntOrange: '#F7A76C',
+    chocolate: '#7B3F00',
+    silver: '#C0C0C0',
+    oliveGreen: '#808000',
+    limeGreen: '#9ACD32'
+};
+
+const skillColorMap = {
+    'cybersecurity-operations': { name: 'Cybersecurity Operations', color: COLORS.blue },
+    'ai-machine-learning': { name: 'AI/Machine Learning/Data Science', color: COLORS.yellow },
+    'advanced-manufacturing-processes': { name: 'Advanced Manufacturing Processes', color: COLORS.mint },
+    'electrical-power-systems': { name: 'Electrical & Power Systems', color: COLORS.red },
+    'semiconductor-fabrication': { name: 'Semiconductor Fabrication', color: COLORS.teal },
+    'biomanufacturing-lab-tech': { name: 'Biomanufacturing & Lab Tech', color: COLORS.blueViolet },
+    'aerospace-systems-engineering': { name: 'Aerospace Systems Engineering', color: COLORS.darkOrange },
+    'clinical-healthcare-delivery': { name: 'Clinical Healthcare Delivery', color: COLORS.orchid },
+    'complex-problem-solving': { name: 'Complex Problem Solving', color: COLORS.steelBlue },
+    'communication-teamwork': { name: 'Communication & Teamwork', color: COLORS.lightSeaGreen },
+    'supply-chain-logistics': { name: 'Supply Chain & Logistics Mgmt', color: COLORS.indigo },
+    'repairing-maintenance-tech': { name: 'Repairing & Maintenance Tech', color: COLORS.oliveGreen },
+    'systems-thinking-design': { name: 'Systems Thinking & Design', color: COLORS.silver },
+    'quality-control-analysis': { name: 'Quality Control Analysis', color: COLORS.chocolate }
+};
+
+const industryFlowColorMap = {
+    'energy-sector': { name: 'Energy', color: COLORS.yellow },
+    'healthcare-biotech': { name: 'Healthcare & Biotech Industry', color: COLORS.red },
+    'advanced-manufacturing-trades': { name: 'Advanced Manufacturing & Industrial Trades', color: COLORS.mint },
+    'ai-advanced-computing': { name: 'AI & Advanced Computing', color: COLORS.blue },
+    'semiconductor-microelectronics': { name: 'Semiconductor (Microelectronics)', color: COLORS.teal },
+    'cybersecurity-industry': { name: 'Cybersecurity', color: '#2A628F' },
+    'aerospace-defense-industry': { name: 'Aerospace & Defense Industry', color: '#052A36' }
+};
+
+const sourceSkillImportance = {
+    'universities-stem': { 'aerospace-systems-engineering': 5, 'ai-machine-learning': 4, 'semiconductor-fabrication': 4, 'complex-problem-solving': 5, 'communication-teamwork': 4, 'supply-chain-logistics': 3, 'systems-thinking-design': 4 },
+    'nsf-grad-programs': { 'cybersecurity-operations': 4, 'ai-machine-learning': 4, 'aerospace-systems-engineering': 3, 'complex-problem-solving': 5, 'communication-teamwork': 4, 'systems-thinking-design': 5 },
+    'microsoft-google-certs': { 'cybersecurity-operations': 4, 'ai-machine-learning': 3, 'communication-teamwork': 3, 'supply-chain-logistics': 2 },
+    'tidewater-cc-cyber': { 'cybersecurity-operations': 4, 'communication-teamwork': 3 },
+    'semiconductor-ccs': { 'semiconductor-fabrication': 5, 'electrical-power-systems': 3, 'advanced-manufacturing-processes': 3, 'complex-problem-solving': 3, 'communication-teamwork': 3, 'quality-control-analysis': 4 },
+    'lockheed-amtap': { 'advanced-manufacturing-processes': 5, 'aerospace-systems-engineering': 4, 'electrical-power-systems': 3, 'complex-problem-solving': 3, 'communication-teamwork': 3, 'supply-chain-logistics': 4, 'repairing-maintenance-tech': 4 },
+    'hii-ingalls': { 'advanced-manufacturing-processes': 4, 'electrical-power-systems': 4, 'complex-problem-solving': 3, 'communication-teamwork': 3, 'repairing-maintenance-tech': 5 },
+    'madison-machinist': { 'advanced-manufacturing-processes': 5, 'complex-problem-solving': 4, 'communication-teamwork': 3, 'repairing-maintenance-tech': 5 },
+    'hennepin-robotics': { 'advanced-manufacturing-processes': 5, 'electrical-power-systems': 3, 'complex-problem-solving': 4, 'communication-teamwork': 3, 'systems-thinking-design': 4 },
+    'jvs-biomap': { 'biomanufacturing-lab-tech': 5, 'clinical-healthcare-delivery': 3, 'communication-teamwork': 3, 'quality-control-analysis': 4 },
+    'illinois-ceja': { 'electrical-power-systems': 5, 'advanced-manufacturing-processes': 3, 'communication-teamwork': 3, 'systems-thinking-design': 4 },
+    'ai-bootcamps': { 'ai-machine-learning': 5, 'cybersecurity-operations': 3, 'complex-problem-solving': 4, 'communication-teamwork': 4, 'systems-thinking-design': 4 },
+    'medical-nursing-schools': { 'clinical-healthcare-delivery': 5, 'complex-problem-solving': 4, 'communication-teamwork': 5 },
+    'dod-skillbridge': { 'advanced-manufacturing-processes': 4, 'cybersecurity-operations': 3, 'supply-chain-logistics': 4, 'complex-problem-solving': 4, 'communication-teamwork': 4, 'systems-thinking-design': 3 },
+    'advanced-robotics-certs': { 'advanced-manufacturing-processes': 4, 'electrical-power-systems': 3, 'repairing-maintenance-tech': 3, 'systems-thinking-design': 3 }
+};
+
+const skillIndustryImportance = {
+    'cybersecurity-operations': { 'cybersecurity-industry': 4.8, 'ai-advanced-computing': 3.5, 'aerospace-defense-industry': 3.0, 'semiconductor-microelectronics': 2.5 },
+    'ai-machine-learning': { 'ai-advanced-computing': 5.0, 'semiconductor-microelectronics': 4.0, 'advanced-manufacturing-trades': 3.8, 'healthcare-biotech': 4.2, 'aerospace-defense-industry': 4.0, 'energy-sector': 3.5 },
+    'advanced-manufacturing-processes': { 'advanced-manufacturing-trades': 4.9, 'aerospace-defense-industry': 4.5, 'semiconductor-microelectronics': 4.0, 'energy-sector': 3.5, 'healthcare-biotech': 2.5 },
+    'electrical-power-systems': { 'energy-sector': 4.8, 'advanced-manufacturing-trades': 4.0, 'semiconductor-microelectronics': 4.5, 'aerospace-defense-industry': 3.8 },
+    'semiconductor-fabrication': { 'semiconductor-microelectronics': 5.0, 'advanced-manufacturing-trades': 4.0, 'ai-advanced-computing': 3.5, 'aerospace-defense-industry': 3.0 },
+    'biomanufacturing-lab-tech': { 'healthcare-biotech': 4.7, 'advanced-manufacturing-trades': 2.0 },
+    'aerospace-systems-engineering': { 'aerospace-defense-industry': 5.0, 'advanced-manufacturing-trades': 3.0 },
+    'clinical-healthcare-delivery': { 'healthcare-biotech': 5.0 },
+    'complex-problem-solving': { 'cybersecurity-industry': 4.5, 'ai-advanced-computing': 4.5, 'advanced-manufacturing-trades': 4.2, 'healthcare-biotech': 4.0, 'energy-sector': 4.3, 'semiconductor-microelectronics': 4.0, 'aerospace-defense-industry': 4.7 },
+    'communication-teamwork': { 'cybersecurity-industry': 3.8, 'ai-advanced-computing': 3.5, 'advanced-manufacturing-trades': 3.5, 'healthcare-biotech': 4.5, 'energy-sector': 3.7, 'semiconductor-microelectronics': 3.0, 'aerospace-defense-industry': 3.9 },
+    'supply-chain-logistics': { 'advanced-manufacturing-trades': 4.5, 'aerospace-defense-industry': 4.2, 'healthcare-biotech': 3.5, 'energy-sector': 3.0, 'semiconductor-microelectronics': 4.8 },
+    'repairing-maintenance-tech': { 'advanced-manufacturing-trades': 4.9, 'energy-sector': 4.8, 'aerospace-defense-industry': 4.5, 'semiconductor-microelectronics': 3.5, 'healthcare-biotech': 2.0 },
+    'systems-thinking-design': { 'cybersecurity-industry': 4.2, 'ai-advanced-computing': 4.5, 'advanced-manufacturing-trades': 3.8, 'healthcare-biotech': 3.5, 'energy-sector': 4.0, 'semiconductor-microelectronics': 4.5, 'aerospace-defense-industry': 4.6 },
+    'quality-control-analysis': { 'advanced-manufacturing-trades': 4.7, 'semiconductor-microelectronics': 4.0, 'healthcare-biotech': 3.8, 'aerospace-defense-industry': 4.1 }
+};
+
+const NODE_WIDTH = 200;
+const NODE_HEIGHT = 40;
+
+const COL1_LEFT_OFFSET_PERCENT = 5;
+const COL2_LEFT_OFFSET_PERCENT = 38;
+const COL3_LEFT_OFFSET_PERCENT = 73;
+
+const sourceNodeConfig = {
+    'universities-stem': { id: 'source-node-universities-stem', top: 50 }, 'nsf-grad-programs': { id: 'source-node-nsf-grad-programs', top: 110 },
+    'microsoft-google-certs': { id: 'source-node-microsoft-google-certs', top: 170 }, 'tidewater-cc-cyber': { id: 'source-node-tidewater-cc-cyber', top: 230 },
+    'semiconductor-ccs': { id: 'source-node-semiconductor-ccs', top: 290 }, 'lockheed-amtap': { id: 'source-node-lockheed-amtap', top: 350 },
+    'hii-ingalls': { id: 'source-node-hii-ingalls', top: 410 }, 'madison-machinist': { id: 'source-node-madison-machinist', top: 470 },
+    'hennepin-robotics': { id: 'source-node-hennepin-robotics', top: 530 }, 'jvs-biomap': { id: 'source-node-jvs-biomap', top: 590 },
+    'illinois-ceja': { id: 'source-node-illinois-ceja', top: 650 }, 'ai-bootcamps': { id: 'source-node-ai-bootcamps', top: 710 },
+    'medical-nursing-schools': { id: 'source-node-medical-nursing-schools', top: 770 }, 'dod-skillbridge': { id: 'source-node-dod-skillbridge', top: 830 },
+    'advanced-robotics-certs': { id: 'source-node-advanced-robotics-certs', top: 890 }
+};
+
+const skillNodeConfig = {
+    'cybersecurity-operations': { id: 'skill-node-cybersecurity-operations', top: 50 }, 'ai-machine-learning': { id: 'skill-node-ai-machine-learning', top: 120 },
+    'advanced-manufacturing-processes': { id: 'skill-node-advanced-manufacturing-processes', top: 190 }, 'electrical-power-systems': { id: 'skill-node-electrical-power-systems', top: 260 },
+    'semiconductor-fabrication': { id: 'skill-node-semiconductor-fabrication', top: 330 }, 'biomanufacturing-lab-tech': { id: 'skill-node-biomanufacturing-lab-tech', top: 400 },
+    'aerospace-systems-engineering': { id: 'skill-node-aerospace-systems-engineering', top: 470 }, 'clinical-healthcare-delivery': { id: 'skill-node-clinical-healthcare-delivery', top: 540 },
+    'complex-problem-solving': { id: 'skill-node-complex-problem-solving', top: 610 }, 'communication-teamwork': { id: 'skill-node-communication-teamwork', top: 680 },
+    'supply-chain-logistics': { id: 'skill-node-supply-chain-logistics', top: 750 }, 'repairing-maintenance-tech': { id: 'skill-node-repairing-maintenance-tech', top: 820 },
+    'systems-thinking-design': { id: 'skill-node-systems-thinking-design', top: 890 }, 'quality-control-analysis': { id: 'skill-node-quality-control-analysis', top: 960 }
+};
+
+const industryNodeConfig = {
+    'energy-sector': { id: 'industry-node-energy-sector', top: 50 },
+    'healthcare-biotech': { id: 'industry-node-healthcare-biotech', top: 170 },
+    'advanced-manufacturing-trades': { id: 'industry-node-advanced-manufacturing-trades', top: 290 },
+    'ai-advanced-computing': { id: 'industry-node-ai-advanced-computing', top: 410 },
+    'semiconductor-microelectronics': { id: 'industry-node-semiconductor-microelectronics', top: 530 },
+    'cybersecurity-industry': { id: 'industry-node-cybersecurity-industry', top: 650 },
+    'aerospace-defense-industry': { id: 'industry-node-aerospace-defense-industry', top: 770 }
+};
+
+function mapImportanceToThicknessClass(importance) {
+    if (importance >= 4.5) return 'thickness-5';
+    if (importance >= 3.5) return 'thickness-4';
+    if (importance >= 2.5) return 'thickness-3';
+    if (importance >= 1.5) return 'thickness-2';
+    return 'thickness-1';
+}
+
+function getElementPosition(elementId) {
+    const element = document.getElementById(elementId);
+    if (!element) {
+        return null;
+    }
+    const rect = element.getBoundingClientRect();
+    const container = document.getElementById('flow-diagram-container');
+    const containerRect = container.getBoundingClientRect();
+    return {
+        x: rect.left + rect.width / 2 - containerRect.left,
+        y: rect.top + rect.height / 2 - containerRect.top,
+        width: rect.width,
+        height: rect.height
+    };
+}
+
+function positionNodes() {
+    const container = document.getElementById('flow-diagram-container');
+    const containerWidth = container.offsetWidth;
+
+    for (const nodeId in sourceNodeConfig) {
+        const node = document.getElementById(sourceNodeConfig[nodeId].id);
+        if (node) {
+            node.style.top = `${sourceNodeConfig[nodeId].top}px`;
+            node.style.left = `${containerWidth * COL1_LEFT_OFFSET_PERCENT / 100}px`;
+        }
+    }
+
+    for (const nodeId in skillNodeConfig) {
+        const node = document.getElementById(skillNodeConfig[nodeId].id);
+        if (node) {
+            node.style.top = `${skillNodeConfig[nodeId].top}px`;
+            node.style.left = `${containerWidth * COL2_LEFT_OFFSET_PERCENT / 100}px`;
+        }
+    }
+
+    for (const nodeId in industryNodeConfig) {
+        const node = document.getElementById(industryNodeConfig[nodeId].id);
+        if (node) {
+            node.style.top = `${industryNodeConfig[nodeId].top}px`;
+            node.style.left = `${containerWidth * COL3_LEFT_OFFSET_PERCENT / 100}px`;
+        }
+    }
+}
+
+function drawFlowLines() {
+    const container = document.getElementById('flow-diagram-container');
+    if (!container || container.offsetParent === null) {
+        return;
+    }
+
+    document.querySelectorAll('.flow-line').forEach(line => line.remove());
+
+    const containerRect = container.getBoundingClientRect();
+
+    for (const sourceId in sourceSkillImportance) {
+        const sourcePos = getElementPosition(sourceNodeConfig[sourceId]?.id);
+        if (!sourcePos) continue;
+
+        const startX = sourcePos.x + sourcePos.width / 2;
+        const startY = sourcePos.y;
+
+        for (const skillId in sourceSkillImportance[sourceId]) {
+            const importance = sourceSkillImportance[sourceId][skillId];
+            if (importance < 1 || !skillNodeConfig[skillId]) continue;
+
+            const skillPos = getElementPosition(skillNodeConfig[skillId].id);
+            if (!skillPos) continue;
+
+            const endX = skillPos.x - skillPos.width / 2;
+            const endY = skillPos.y;
+
+            const line = document.createElement('div');
+            line.className = `flow-line ${mapImportanceToThicknessClass(importance)}`;
+            line.style.backgroundColor = skillColorMap[skillId]?.color || '#CCCCCC';
+            
+            line.dataset.sourceId = sourceId;
+            line.dataset.skillId = skillId;
+            line.dataset.lineType = 'source-to-skill';
+
+            const length = Math.hypot(endX - startX, endY - startY);
+            const angle = Math.atan2(endY - startY, endX - startX) * (180 / Math.PI);
+
+            line.style.width = `${length}px`;
+            line.style.left = `${startX}px`;
+            line.style.top = `${startY}px`;
+            line.style.transform = `rotate(${angle}deg)`;
+
+            container.appendChild(line);
+        }
+    }
+
+    for (const skillId in skillIndustryImportance) {
+        const skillPos = getElementPosition(skillNodeConfig[skillId]?.id);
+        if (!skillPos) continue;
+
+        const startX = skillPos.x + skillPos.width / 2;
+        const startY = skillPos.y;
+
+        for (const industryId in skillIndustryImportance[skillId]) {
+            const importance = skillIndustryImportance[skillId][industryId];
+            if (importance < 1 || !industryNodeConfig[industryId]) continue;
+
+            const industryPos = getElementPosition(industryNodeConfig[industryId].id);
+            if (!industryPos) continue;
+
+            const endX = industryPos.x - industryPos.width / 2;
+            const endY = industryPos.y;
+
+            const line = document.createElement('div');
+            line.className = `flow-line ${mapImportanceToThicknessClass(importance)}`;
+            line.style.backgroundColor = industryFlowColorMap[industryId]?.color || '#CCCCCC';
+            
+            line.dataset.skillId = skillId;
+            line.dataset.industryId = industryId;
+            line.dataset.lineType = 'skill-to-industry';
+
+            const length = Math.hypot(endX - startX, endY - startY);
+            const angle = Math.atan2(endY - startY, endX - startX) * (180 / Math.PI);
+
+            line.style.width = `${length}px`;
+            line.style.left = `${startX}px`;
+            line.style.top = `${startY}px`;
+            line.style.transform = `rotate(${angle}deg)`;
+
+            container.appendChild(line);
+        }
+    }
+}
+
+function populateLegends() {
+    const skillLegendContainer = document.getElementById('skill-color-legend');
+    skillLegendContainer.innerHTML = '';
+    for (const skillId in skillColorMap) {
+        const skill = skillColorMap[skillId];
+        const legendItem = document.createElement('div');
+        legendItem.className = 'legend-item';
+        legendItem.innerHTML = `<div class="legend-color-box" style="background-color: ${skill.color};"></div>${skill.name}`;
+        skillLegendContainer.appendChild(legendItem);
+    }
+
+    const industryLegendContainer = document.getElementById('industry-flow-color-legend');
+    industryLegendContainer.innerHTML = '';
+    for (const industryId in industryFlowColorMap) {
+        const industry = industryFlowColorMap[industryId];
+        const legendItem = document.createElement('div');
+        legendItem.className = 'legend-item';
+        legendItem.innerHTML = `<div class="legend-color-box" style="background-color: ${industry.color};"></div>${industry.name}`;
+        industryLegendContainer.appendChild(legendItem);
+    }
+}
+
+function addHoverEffects() {
+    document.querySelectorAll('.node').forEach(node => {
+        node.addEventListener('mouseenter', () => {
+            const nodeId = node.dataset.nodeId;
+            const nodeType = node.dataset.nodeType;
+
+            document.querySelectorAll('.flow-line').forEach(line => {
+                line.style.opacity = 0.15;
+            });
+
+            document.querySelectorAll('.flow-line').forEach(line => {
+                let shouldHighlight = false;
+                if (nodeType === 'source' && line.dataset.sourceId === nodeId) {
+                    shouldHighlight = true;
+                } else if (nodeType === 'skill') {
+                    if (line.dataset.skillId === nodeId) {
+                        shouldHighlight = true;
+                    }
+                } else if (nodeType === 'industry' && line.dataset.industryId === nodeId) {
+                    shouldHighlight = true;
+                }
+
+                if (shouldHighlight) {
+                    line.style.opacity = 0.9;
+                }
+            });
+        });
+
+        node.addEventListener('mouseleave', () => {
+            document.querySelectorAll('.flow-line').forEach(line => {
+                line.style.opacity = 0.7;
+            });
+        });
+    });
+}
+
+// Main Navigation Logic
+function showMainView(viewName) {
+    const analysisView = document.getElementById('industry-analysis-view');
+    const flowmapView = document.getElementById('talent-flowmap-view');
+    const fullReportView = document.getElementById('full-report-view');
+    const additionalAnalysisView = document.getElementById('additional-analysis-view'); // New view
+    const industrySelector = document.getElementById('industry-selector');
+
+    analysisView.classList.add('hidden');
+    flowmapView.classList.add('hidden');
+    fullReportView.classList.add('hidden');
+    additionalAnalysisView.classList.add('hidden'); // Hide new view
+    industrySelector.classList.add('hidden');
+
+    if (viewName === 'industry-analysis') {
+        analysisView.classList.remove('hidden');
+        industrySelector.classList.remove('hidden');
+        setActiveIndustry(activeIndustry);
+    } else if (viewName === 'talent-flowmap') {
+        flowmapView.classList.remove('hidden');
+        setTimeout(() => {
+            positionNodes();
+            drawFlowLines();
+            populateLegends();
+            addHoverEffects();
+        }, 50);
+    } else if (viewName === 'full-report') {
+        fullReportView.classList.remove('hidden');
+        window.scrollTo(0,0);
+    } else if (viewName === 'additional-analysis') { // Show new view
+        additionalAnalysisView.classList.remove('hidden');
+        window.scrollTo(0,0);
+    }
+
+    document.querySelectorAll('#main-nav-selector .nav-button').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.view === viewName);
+    });
+}
+
 function setupNav() {
-    const selector = document.getElementById('industry-selector');
-    selector.innerHTML = Object.keys(industryData).map(key => 
+    const industrySelector = document.getElementById('industry-selector');
+    industrySelector.innerHTML = Object.keys(industryData).map(key => 
         `<button id="btn-${key}" data-key="${key}" class="nav-button px-4 py-2 text-sm font-medium text-gray-700 bg-white rounded-md shadow-sm hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#073B4C]">
             ${industryData[key].title}
         </button>`
     ).join('');
 
-    selector.addEventListener('click', e => {
+    industrySelector.addEventListener('click', e => {
         if (e.target.tagName === 'BUTTON') {
             const key = e.target.dataset.key;
-            setActiveIndustry(key);
+            renderIndustryAnalysis(key);
+        }
+    });
+
+    document.getElementById('main-nav-selector').addEventListener('click', e => {
+        if (e.target.tagName === 'BUTTON') {
+            showMainView(e.target.dataset.view);
         }
     });
 }
@@ -485,8 +1835,8 @@ function setActiveIndustry(key) {
     document.querySelectorAll('#industry-selector button').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.key === key);
     });
-    renderIndustry(key);
-    const section = document.getElementById(key);
+    renderIndustryAnalysis(key);
+    const section = document.getElementById(`${key}-content`);
     if(section) {
        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
@@ -501,6 +1851,7 @@ function toggleRoleCard(cardElement) {
 
 document.addEventListener('DOMContentLoaded', () => {
     setupNav();
+    showMainView('industry-analysis');
     setActiveIndustry('energy');
 
     document.querySelectorAll('.accordion-button').forEach(button => {
@@ -512,6 +1863,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
+window.addEventListener('resize', () => {
+    clearTimeout(window.resizeTimer);
+    window.resizeTimer = setTimeout(() => {
+        if (!document.getElementById('talent-flowmap-view').classList.contains('hidden')) {
+            positionNodes();
+            drawFlowLines();
+        }
+    }, 150);
+});
 </script>
 </body>
 </html>
